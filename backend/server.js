@@ -12,18 +12,8 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
 const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
-  },
+  origin: true,
   credentials: true,
 };
 
