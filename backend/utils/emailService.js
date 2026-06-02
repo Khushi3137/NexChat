@@ -152,7 +152,7 @@ exports.sendEmailNotification = async (recipient, message, options = {}) => {
     await emailTransporter.sendMail(mailOptions);
     console.log(`Email sent to ${recipient.email}`);
   } catch (error) {
-    console.error('Email error:', getPublicEmailError(error));
+    console.error('Email error:', getPublicEmailError(error), error);
   }
 };
 

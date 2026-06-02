@@ -4,6 +4,9 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
 };
 
@@ -92,6 +95,7 @@ export const useWebRTC = (socket, userId) => {
   const createPeerConnection = useCallback((targetUserId) => {
     cleanupPeerConnection();
 
+    console.log('Creating RTCPeerConnection for', targetUserId);
     const peerConnection = new RTCPeerConnection(ICE_SERVERS);
     peerRef.current = peerConnection;
 
@@ -104,12 +108,14 @@ export const useWebRTC = (socket, userId) => {
     peerConnection.ontrack = (event) => {
       const [stream] = event.streams;
       if (!stream) return;
+      console.log('Received remote track for', targetUserId);
       syncRemoteStream(stream);
     };
 
     peerConnection.onicecandidate = (event) => {
       if (!event.candidate || !socket || !targetUserId) return;
 
+      console.log('Emitting local ICE candidate to', targetUserId, event.candidate);
       socket.emit('iceCandidate', {
         to: targetUserId,
         candidate: event.candidate,
@@ -118,6 +124,7 @@ export const useWebRTC = (socket, userId) => {
 
     peerConnection.onconnectionstatechange = () => {
       const state = peerConnection.connectionState;
+      console.log('Peer connection state:', state, 'for', targetUserId);
 
       if (state === 'connected') {
         setCallStatus('in-call');
@@ -155,11 +162,13 @@ export const useWebRTC = (socket, userId) => {
     if (!socket) return undefined;
 
     const handleCallAccepted = async (payload) => {
+      console.log('Received callAccepted payload:', payload);
       const signal = payload?.signal || payload;
       if (!signal || !peerRef.current) return;
 
       try {
         await peerRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+        console.log('Remote description set after callAccepted');
         await flushPendingCandidates();
         setCallStatus('connecting');
       } catch (error) {
@@ -169,12 +178,15 @@ export const useWebRTC = (socket, userId) => {
     };
 
     const handleIceCandidate = async ({ candidate }) => {
+      console.log('Received remote ICE candidate:', candidate);
       if (!candidate || !peerRef.current) return;
 
       const nextCandidate = new RTCIceCandidate(candidate);
 
       if (peerRef.current.remoteDescription?.type) {
-        await peerRef.current.addIceCandidate(nextCandidate).catch(() => {});
+        await peerRef.current.addIceCandidate(nextCandidate).catch((err) => {
+          console.error('Error adding ICE candidate:', err);
+        });
         return;
       }
 
