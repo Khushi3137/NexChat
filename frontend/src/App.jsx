@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { ChatProvider } from './context/ChatContext';
+import { useSocketEvents } from './hooks/useSocket';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -41,11 +42,17 @@ const AppRoutes = () => {
   );
 };
 
+const SocketEventListener = () => {
+  useSocketEvents();
+  return null;
+};
+
 function App() {
   return (
     <AuthProvider>
       <SocketProvider>
         <ChatProvider>
+          <SocketEventListener />
           <Router>
             <Toaster
               position="top-right"
