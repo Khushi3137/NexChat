@@ -1,0 +1,31 @@
+{
+  "name": "nexus-chat-frontend",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.18.0",
+    "socket.io-client": "^4.7.2",
+    "axios": "^1.6.0",
+    "@emoji-mart/react": "^1.1.1",
+    "@emoji-mart/data": "^1.1.2",
+    "react-hot-toast": "^2.4.1",
+    "recharts": "^2.9.0",
+    "date-fns": "^2.30.0",
+    "react-player": "^2.13.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "devDependencies": {
+    "react-scripts": "5.0.1",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.27"
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  }
+}
