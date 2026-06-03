@@ -32,7 +32,7 @@ const getDateLabel = (value) => {
   if (isYesterday(date)) return 'Yesterday';
   return format(date, 'MMMM d');
 };
-const CALL_RESPONSE_TIMEOUT_MS = 30000;
+const CALL_RESPONSE_TIMEOUT_MS = 60000;
 
 const extractLinks = (text = '') => text.match(/https?:\/\/[^\s]+|www\.[^\s]+/gi) || [];
 const normalizeId = (value) => (typeof value === 'object' ? value?._id : value)?.toString?.() || '';
@@ -575,7 +575,7 @@ const ChatWindow = ({ chat }) => {
     const senderName = senderParticipant?.localName || senderDetails?.localName || senderParticipant?.name || senderDetails?.name || 'Profile photo';
     openProfilePhotoViewer(senderDetails?.profilePicture, senderName);
   };
-  const other = chat.participants?.find((participant) => participant._id !== user._id);
+  const other = chat.participants?.find((participant) => normalizeId(participant) !== normalizeId(user._id));
   const isOnline = !isAIBotChat && !chat.isGroupChat && isParticipantOnline(other);
   const isMutedChat = Boolean(chat.isMuted);
   const chatTypers = typingUsers[chat._id] || {};
@@ -1052,6 +1052,16 @@ const ChatWindow = ({ chat }) => {
     };
   }, [chat._id, focusSearchResultMessage, isInfoPanelOpen, isMessageSearchOpen, messageSearchQuery]);
 
+  // Mark call as answered when remote stream is received
+  useEffect(() => {
+    const activeSession = callSessionRef.current;
+    if (!activeSession || !remoteStream || activeSession.answeredAt) return;
+
+    activeSession.answeredAt = new Date().toISOString();
+    clearPendingCallTimeout();
+    startCallDurationTimer(activeSession.answeredAt);
+  }, [remoteStream, clearPendingCallTimeout, startCallDurationTimer]);
+
   useEffect(() => {
     const activeSession = callSessionRef.current;
     if (!activeSession) return;
@@ -1069,9 +1079,11 @@ const ChatWindow = ({ chat }) => {
     }
 
     if (callStatus === 'ended') {
-      void completeCallSession(activeSession.answeredAt ? 'completed' : 'missed');
+      // If remote stream was received, mark as completed even if connection dropped
+      const outcome = activeSession.answeredAt || remoteStream ? 'completed' : 'missed';
+      void completeCallSession(outcome);
     }
-  }, [callStatus, clearPendingCallTimeout, completeCallSession, startCallDurationTimer]);
+  }, [callStatus, clearPendingCallTimeout, completeCallSession, startCallDurationTimer, remoteStream]);
 
   useEffect(() => {
     if (!incomingGroupCall || normalizeId(incomingGroupCall.chatId) !== normalizeId(chat._id)) return;
@@ -1116,7 +1128,9 @@ const ChatWindow = ({ chat }) => {
     }
 
     if (groupCallStatus === 'ended') {
-      void completeGroupCallSession(activeSession.answeredAt ? 'completed' : 'missed');
+      // If remote participants were present, mark as completed even if connection dropped
+      const outcome = activeSession.answeredAt || groupRemoteParticipants.length ? 'completed' : 'missed';
+      void completeGroupCallSession(outcome);
     }
   }, [
     clearPendingGroupCallTimeout,
@@ -2029,7 +2043,8 @@ const ChatWindow = ({ chat }) => {
   };
 
   const handleStartDirectCall = async (nextCallType) => {
-    if (!other?._id) return;
+    const otherUserId = normalizeId(other);
+    if (!otherUserId) return;
 
     if (callSessionRef.current || groupCallSessionRef.current) {
       toast('A call is already in progress.');
@@ -2040,7 +2055,7 @@ const ChatWindow = ({ chat }) => {
       chatId: chat._id,
       callType: nextCallType,
       initiatorId: user._id,
-      receiverId: other._id,
+      receiverId: otherUserId,
       startedAt: new Date().toISOString(),
       answeredAt: null,
     };
@@ -2049,12 +2064,12 @@ const ChatWindow = ({ chat }) => {
     setShowCall(true);
 
     try {
-      await startCall(other._id, nextCallType, { chatId: chat._id });
+      await startCall(otherUserId, nextCallType, { chatId: chat._id });
       clearPendingCallTimeout();
       callTimeoutRef.current = window.setTimeout(() => {
         void completeCallSession('missed', {
           emitAction: 'end',
-          remoteUserId: other._id,
+          remoteUserId: otherUserId,
           endReason: 'missed',
         });
       }, CALL_RESPONSE_TIMEOUT_MS);
@@ -4071,7 +4086,7 @@ const ChatWindow = ({ chat }) => {
                         src={getChatAvatar(entry, user._id)}
                         name={getChatName(entry, user._id)}
                         size={10}
-                        online={!entry.isGroupChat && isParticipantOnline(entry.participants?.find((participant) => participant._id !== user._id))}
+                        online={!entry.isGroupChat && isParticipantOnline(entry.participants?.find((participant) => normalizeId(participant) !== normalizeId(user._id)))}
                         shape={entry.isGroupChat ? 'round' : 'soft'}
                       />
                       <div className="min-w-0 flex-1">
@@ -4079,7 +4094,7 @@ const ChatWindow = ({ chat }) => {
                         <div className="truncate text-sm text-white/38">
                           {entry.isGroupChat
                             ? `${entry.participants?.length || 0} members`
-                            : entry.participants?.find((participant) => participant._id !== user._id)?.email || 'Direct chat'}
+                            : entry.participants?.find((participant) => normalizeId(participant) !== normalizeId(user._id))?.email || 'Direct chat'}
                         </div>
                       </div>
                       <div

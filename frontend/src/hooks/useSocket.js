@@ -5,7 +5,7 @@ import { useSocket } from '../context/SocketContext';
 import { useChat } from '../context/ChatContext';
 import { useNotification } from './useNotification';
 
-const CALL_RESPONSE_TIMEOUT_MS = 30000;
+const CALL_RESPONSE_TIMEOUT_MS = 60000;
 const normalizeId = (value) => (typeof value === 'object' ? value?._id : value)?.toString?.() || '';
 
 export const useSocketEvents = () => {
