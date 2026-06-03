@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const normalizeId = (value) => (typeof value === 'object' ? value?._id : value)?.toString?.() || '';
 
@@ -80,11 +80,41 @@ const GroupCallModal = ({
   onClose,
   onStartScreenShare,
   onStopScreenShare,
+  onInviteMembers,
 }) => {
+  const [isInvitePanelOpen, setIsInvitePanelOpen] = useState(false);
+  const [selectedInviteIds, setSelectedInviteIds] = useState([]);
   const isVideoCall = callType === 'video';
   const showAnswerActions = isIncoming && callStatus === 'incoming';
   const showScreenShareAction = isVideoCall && callStatus === 'in-call' && !showAnswerActions;
   const remoteCount = remoteParticipants.length;
+  const callTypeLabel = isVideoCall ? 'Video call' : 'Audio call';
+  const connectionLabel =
+    callStatus === 'in-call'
+      ? 'Connected'
+      : callStatus === 'connecting'
+        ? 'Connecting'
+        : callStatus === 'calling'
+          ? 'Ringing'
+          : callStatus === 'incoming'
+            ? 'Incoming'
+            : statusCopy[callStatus] || 'Active';
+  const headlineLabel = showAnswerActions
+    ? `Incoming group ${isVideoCall ? 'video' : 'audio'} call`
+    : callStatus === 'in-call'
+      ? `Group ${callTypeLabel.toLowerCase()} connected`
+      : `${callTypeLabel} - ${connectionLabel}`;
+  const activeParticipantIds = useMemo(
+    () => new Set([
+      normalizeId(currentUserId),
+      ...remoteParticipants.map((participant) => normalizeId(participant.participantId)),
+    ]),
+    [currentUserId, remoteParticipants]
+  );
+  const inviteCandidates = participants.filter((participant) => {
+    const participantId = normalizeId(participant);
+    return participantId && !activeParticipantIds.has(participantId);
+  });
   const allTiles = [
     ...remoteParticipants.map((participant) => ({
       key: normalizeId(participant.participantId),
@@ -105,6 +135,22 @@ const GroupCallModal = ({
       isLocal: true,
     },
   ];
+  const canInviteMembers = !showAnswerActions && callStatus !== 'ended' && inviteCandidates.length > 0;
+
+  const toggleInviteSelection = (participantId) => {
+    setSelectedInviteIds((previous) =>
+      previous.includes(participantId)
+        ? previous.filter((entry) => entry !== participantId)
+        : [...previous, participantId]
+    );
+  };
+
+  const handleInviteSelected = () => {
+    if (!selectedInviteIds.length) return;
+    onInviteMembers?.(selectedInviteIds);
+    setSelectedInviteIds([]);
+    setIsInvitePanelOpen(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-md">
@@ -121,12 +167,20 @@ const GroupCallModal = ({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="brand-font truncate text-2xl font-bold text-white">{chatName || 'Group Call'}</div>
+              <div className="mt-2 text-lg font-semibold text-white">{headlineLabel}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1 text-sm text-white/75">
-                  {statusCopy[callStatus] || 'Group call active'}
+                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold ${
+                  callStatus === 'in-call'
+                    ? 'border-[#6affe8]/22 bg-[#6affe8]/10 text-[#aef9ff]'
+                    : showAnswerActions
+                      ? 'border-[#f9d66a]/22 bg-[#f9d66a]/10 text-[#ffe9a6]'
+                      : 'border-white/12 bg-black/30 text-white/75'
+                }`}>
+                  <span className={`h-2 w-2 rounded-full ${callStatus === 'in-call' ? 'bg-[#6affe8]' : showAnswerActions ? 'bg-[#f9d66a]' : 'bg-white/45'}`} />
+                  {connectionLabel}
                 </span>
                 <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1 text-sm text-white/65">
-                  {isVideoCall ? 'Video call' : 'Voice call'}
+                  {callTypeLabel}
                 </span>
                 <span className="rounded-full border border-white/12 bg-black/30 px-3 py-1 text-sm text-white/65">
                   {remoteCount + 1} participant{remoteCount === 0 ? '' : 's'}
@@ -152,6 +206,75 @@ const GroupCallModal = ({
                   : 'Waiting for someone else in the group to join.'}
             </div>
           </div>
+
+          {!showAnswerActions ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setIsInvitePanelOpen((previous) => !previous)}
+                disabled={!canInviteMembers}
+                className="rounded-2xl border border-[#7c6aff]/24 bg-[#7c6aff]/12 px-4 py-2.5 text-sm font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Add people
+              </button>
+              {isInvitePanelOpen ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-[#0d0d17]/90 p-3">
+                  {inviteCandidates.length ? (
+                    <>
+                      <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                        {inviteCandidates.map((participant) => {
+                          const participantId = normalizeId(participant);
+                          const isSelected = selectedInviteIds.includes(participantId);
+
+                          return (
+                            <button
+                              type="button"
+                              key={participantId}
+                              onClick={() => toggleInviteSelection(participantId)}
+                              className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                                isSelected
+                                  ? 'border-[#6affe8]/26 bg-[#6affe8]/10 text-white'
+                                  : 'border-white/8 bg-white/[0.03] text-white/72 hover:bg-white/[0.06] hover:text-white'
+                              }`}
+                            >
+                              <span className="truncate text-sm font-semibold">
+                                {participant.localName || participant.name || 'Group member'}
+                              </span>
+                              <span className="text-xs text-white/42">{isSelected ? 'Selected' : 'Invite'}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedInviteIds([]);
+                            setIsInvitePanelOpen(false);
+                          }}
+                          className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/56 transition hover:bg-white/[0.06] hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleInviteSelected}
+                          disabled={!selectedInviteIds.length}
+                          className="rounded-xl border border-[#6affe8]/24 bg-[#6affe8]/12 px-3 py-2 text-xs font-semibold text-[#aef9ff] transition hover:bg-[#6affe8]/18 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          Invite
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-white/45">
+                      Everyone in this group is already in the call.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="app-scrollbar flex-1 overflow-y-auto px-6 py-6">

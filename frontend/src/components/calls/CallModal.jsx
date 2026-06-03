@@ -69,6 +69,17 @@ const ScreenIcon = () => (
   </svg>
 );
 
+const SpeakerIcon = ({ active = false }) => (
+  <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M5 9v6h4l5 4V5L9 9H5z" />
+    {active ? (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M17 9.5a4 4 0 010 5M19.5 7a7.5 7.5 0 010 10" />
+    ) : (
+      <path strokeLinecap="round" strokeWidth={1.8} d="M18 9l4 4m0-4l-4 4" />
+    )}
+  </svg>
+);
+
 const MoreIcon = () => (
   <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" viewBox="0 0 24 24">
     <path d="M6 12a2 2 0 114 0 2 2 0 01-4 0zm6 0a2 2 0 114 0 2 2 0 01-4 0zm6 0a2 2 0 114 0 2 2 0 01-4 0z" />
@@ -100,6 +111,7 @@ const CallModal = ({
   onToggleAudio,
   onToggleVideo,
   onToggleSpeaker,
+  onAddPeople,
 }) => {
   const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const isVideoCall = callType === 'video';
@@ -112,8 +124,23 @@ const CallModal = ({
     Boolean(navigator.mediaDevices?.getDisplayMedia);
   const showAnswerActions = isIncoming && callStatus === 'incoming';
   const showScreenShareAction = isVideoCall && supportsScreenShare && isConnected && !showAnswerActions;
-  const showSpeakerAction = !isVideoCall && isConnected && !showAnswerActions && supportsAudioOutputSelection;
+  const showSpeakerAction = isConnected && !showAnswerActions && supportsAudioOutputSelection;
   const statusLabel = isScreenSharing ? 'Sharing screen' : statusCopy[callStatus] || 'Call active';
+  const callTypeLabel = isVideoCall ? 'Video call' : 'Audio call';
+  const headlineLabel = showAnswerActions
+    ? `Incoming ${isVideoCall ? 'video' : 'audio'} call`
+    : isConnected
+      ? `${callTypeLabel} connected`
+      : `${callTypeLabel} - ${statusLabel}`;
+  const connectionLabel = isConnected
+    ? 'Connected'
+    : callStatus === 'connecting'
+      ? 'Connecting'
+      : callStatus === 'calling'
+        ? 'Ringing'
+        : callStatus === 'incoming'
+          ? 'Incoming'
+          : statusLabel;
   const durationText = durationLabel && isConnected ? durationLabel : '00:00';
 
   useEffect(() => {
@@ -160,7 +187,7 @@ const CallModal = ({
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity ${hasRemoteVideo ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 h-full w-full object-contain transition-opacity ${hasRemoteVideo ? 'opacity-100' : 'opacity-0'}`}
           />
         ) : (
           <audio ref={remoteVideoRef} autoPlay playsInline />
@@ -190,9 +217,24 @@ const CallModal = ({
           </svg>
         </button>
 
+        <div className="absolute left-1/2 top-4 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl border border-white/12 bg-black/62 px-4 py-3 text-center shadow-[0_16px_44px_rgba(0,0,0,0.42)] backdrop-blur-md">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-white/50">{callTypeLabel}</div>
+          <div className="mt-1 text-lg font-bold text-white">{headlineLabel}</div>
+          <div className={`mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+            isConnected
+              ? 'border-[#6affe8]/26 bg-[#6affe8]/12 text-[#aef9ff]'
+              : showAnswerActions
+                ? 'border-[#f9d66a]/24 bg-[#f9d66a]/12 text-[#ffe9a6]'
+                : 'border-white/10 bg-white/[0.06] text-white/66'
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-[#6affe8]' : showAnswerActions ? 'bg-[#f9d66a]' : 'bg-white/45'}`} />
+            {connectionLabel}
+          </div>
+        </div>
+
         {isVideoCall && localStream ? (
           <div className="absolute right-4 top-4 z-20 overflow-hidden rounded-lg border border-white/15 bg-black/50 shadow-[0_14px_38px_rgba(0,0,0,0.42)] lg:right-6 lg:top-6">
-            <video ref={localVideoRef} autoPlay playsInline muted className="h-20 w-28 object-cover sm:h-24 sm:w-36" />
+            <video ref={localVideoRef} autoPlay playsInline muted className="h-16 w-24 object-cover sm:h-20 sm:w-28" />
             <div className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[0.68rem] font-semibold text-white/85">
               You
             </div>
@@ -215,7 +257,7 @@ const CallModal = ({
           <InitialAvatar name={participantName} sizeClass="h-8 w-8" textClass="text-xs" />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{participantName || 'Nexus Chat'}</div>
-            <div className="text-[0.7rem] text-[#6affe8]">{isConnected ? 'Online' : statusLabel}</div>
+            <div className="text-[0.7rem] text-[#6affe8]">{connectionLabel} - {callTypeLabel}</div>
           </div>
         </div>
 
@@ -251,13 +293,12 @@ const CallModal = ({
                 ) : null}
                 {showSpeakerAction ? (
                   <IconButton title={audioOutputMode === 'speaker' ? 'Speaker off' : 'Speaker on'} onClick={onToggleSpeaker} active={audioOutputMode === 'speaker'}>
-                    <MoreIcon />
+                    <SpeakerIcon active={audioOutputMode === 'speaker'} />
                   </IconButton>
-                ) : (
-                  <IconButton title="More options" onClick={onMinimize}>
-                    <MoreIcon />
-                  </IconButton>
-                )}
+                ) : null}
+                <IconButton title="More options" onClick={onMinimize}>
+                  <MoreIcon />
+                </IconButton>
                 <IconButton title="End call" onClick={onEnd} danger>
                   <PhoneIcon />
                 </IconButton>
@@ -269,7 +310,10 @@ const CallModal = ({
 
       <aside className="hidden w-[320px] shrink-0 flex-col border-l border-white/10 bg-[#111118] lg:flex">
         <div className="flex h-[68px] items-center justify-between border-b border-white/8 px-5">
-          <div className="text-sm font-semibold">{statusLabel}</div>
+          <div>
+            <div className="text-sm font-semibold">{headlineLabel}</div>
+            <div className="mt-0.5 text-xs text-white/42">{connectionLabel}</div>
+          </div>
           {!showAnswerActions ? (
             <button
               type="button"
@@ -291,9 +335,14 @@ const CallModal = ({
               <InitialAvatar name={participantName} />
               <div>
                 <div className="text-sm font-semibold">{participantName || 'Nexus Chat'}</div>
-                <div className="text-xs text-[#6affe8]">{isConnected ? 'Online' : statusLabel}</div>
+                <div className="text-xs text-[#6affe8]">{connectionLabel} - {callTypeLabel}</div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-white/7 bg-white/[0.035] p-4">
+            <div className="text-xs text-white/48">Call type</div>
+            <div className="mt-1 text-sm font-semibold">{callTypeLabel}</div>
           </div>
 
           <div className="mt-3 rounded-lg border border-white/7 bg-white/[0.035] p-4">
@@ -314,6 +363,7 @@ const CallModal = ({
             <div className="text-sm font-semibold">Participants (2)</div>
             <button
               type="button"
+              onClick={onAddPeople}
               className="rounded-lg border border-[#7c6aff]/35 px-3 py-1.5 text-xs font-semibold text-[#b8b0ff] transition hover:bg-[#7c6aff]/12 hover:text-white"
             >
               Add people

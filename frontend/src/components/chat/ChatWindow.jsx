@@ -498,6 +498,7 @@ const ChatWindow = ({ chat }) => {
   const callSessionRef = useRef(null);
   const callTimerRef = useRef(null);
   const callTimeoutRef = useRef(null);
+  const callStatusRef = useRef('idle');
   const groupCallSessionRef = useRef(null);
   const groupCallTimerRef = useRef(null);
   const groupCallTimeoutRef = useRef(null);
@@ -528,6 +529,10 @@ const ChatWindow = ({ chat }) => {
     setCallStatus,
     setCaller,
   } = useWebRTC(socket, user._id);
+
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
   const {
     localStream: groupLocalStream,
     localVideoRef: groupLocalVideoRef,
@@ -539,6 +544,7 @@ const ChatWindow = ({ chat }) => {
     declineGroupCall,
     leaveGroupCall,
     endGroupCall,
+    inviteGroupCallMembers,
     startScreenShare: startGroupScreenShare,
     stopScreenShare: stopGroupScreenShare,
     resetGroupCallState,
@@ -643,6 +649,15 @@ const ChatWindow = ({ chat }) => {
   const clearPendingCallTimeout = useCallback(() => {
     window.clearTimeout(callTimeoutRef.current);
     callTimeoutRef.current = null;
+  }, []);
+
+  const shouldExpirePendingCall = useCallback(() => {
+    const activeSession = callSessionRef.current;
+    return Boolean(
+      activeSession &&
+      !activeSession.answeredAt &&
+      (callStatusRef.current === 'incoming' || callStatusRef.current === 'calling')
+    );
   }, []);
 
   const stopCallDurationTimer = useCallback(() => {
@@ -1540,6 +1555,11 @@ const ChatWindow = ({ chat }) => {
       playNotificationSound();
       clearPendingCallTimeout();
       callTimeoutRef.current = window.setTimeout(() => {
+        if (!shouldExpirePendingCall()) {
+          clearPendingCallTimeout();
+          return;
+        }
+
         void completeCallSession('missed', {
           emitAction: 'decline',
           remoteUserId: from,
@@ -1604,7 +1624,7 @@ const ChatWindow = ({ chat }) => {
       socket.off('callDeclined', callDeclinedHandler);
       socket.off('callEnded', callEndedHandler);
     };
-  }, [addMessage, chat._id, clearPendingCallTimeout, completeCallSession, editingScheduledId, navigate, playNotificationSound, resetCallState, setCallStatus, setCaller, setMessages, setPendingIncomingCall, socket, user._id]);
+  }, [addMessage, chat._id, clearPendingCallTimeout, completeCallSession, editingScheduledId, navigate, playNotificationSound, resetCallState, setCallStatus, setCaller, setMessages, setPendingIncomingCall, shouldExpirePendingCall, socket, user._id]);
 
   useEffect(() => {
     if (!pendingIncomingCall) return;
@@ -1642,6 +1662,11 @@ const ChatWindow = ({ chat }) => {
     setIsCallMinimized(false);
     clearPendingCallTimeout();
     callTimeoutRef.current = window.setTimeout(() => {
+      if (!shouldExpirePendingCall()) {
+        clearPendingCallTimeout();
+        return;
+      }
+
       void completeCallSession('missed', {
         emitAction: 'decline',
         remoteUserId: pendingIncomingCall.from,
@@ -1649,7 +1674,7 @@ const ChatWindow = ({ chat }) => {
       });
     }, CALL_RESPONSE_TIMEOUT_MS);
     setPendingIncomingCall(null);
-  }, [chat._id, clearPendingCallTimeout, completeCallSession, pendingIncomingCall, setCallStatus, setCaller, setPendingIncomingCall, socket, user._id]);
+  }, [chat._id, clearPendingCallTimeout, completeCallSession, pendingIncomingCall, setCallStatus, setCaller, setPendingIncomingCall, shouldExpirePendingCall, socket, user._id]);
 
   useEffect(() => {
     const nextCount = messages.length;
@@ -1997,6 +2022,18 @@ const ChatWindow = ({ chat }) => {
     }, 80);
   };
 
+  const handleAddPeopleFromCall = () => {
+    if (!chat.isGroupChat) {
+      setIsCallMinimized(true);
+      toast('Create a group chat with this person, then start a group call from there.');
+      navigate('/app');
+      return;
+    }
+
+    setIsCallMinimized(true);
+    openAddMemberPanel();
+  };
+
   const handleAddGroupContact = async (participant) => {
     if (!participant?._id) return;
 
@@ -2086,6 +2123,11 @@ const ChatWindow = ({ chat }) => {
       await startCall(otherUserId, nextCallType, { chatId: chat._id });
       clearPendingCallTimeout();
       callTimeoutRef.current = window.setTimeout(() => {
+        if (!shouldExpirePendingCall()) {
+          clearPendingCallTimeout();
+          return;
+        }
+
         void completeCallSession('missed', {
           emitAction: 'end',
           remoteUserId: otherUserId,
@@ -2106,6 +2148,7 @@ const ChatWindow = ({ chat }) => {
     if (!caller?.id || !caller?.signal) return;
 
     try {
+      clearPendingCallTimeout();
       await answerCall(caller.signal, caller.id, callType, {
         chatId: caller.chatId || chat._id,
         initialCandidates: caller.candidates || [],
@@ -2268,6 +2311,17 @@ const ChatWindow = ({ chat }) => {
     void completeGroupCallSession(activeSession.answeredAt ? 'completed' : 'missed', {
       emitAction: isHost ? 'end' : 'leave',
     });
+  };
+
+  const handleInviteGroupCallMembers = (participantIds) => {
+    const inviteIds = (Array.isArray(participantIds) ? participantIds : [])
+      .map((participantId) => normalizeId(participantId))
+      .filter(Boolean);
+
+    if (!inviteIds.length) return;
+
+    inviteGroupCallMembers(chat._id, inviteIds);
+    toast.success(`Invited ${inviteIds.length} member${inviteIds.length === 1 ? '' : 's'} to the call`);
   };
 
   const handleStartGroupScreenShare = async () => {
@@ -3963,6 +4017,7 @@ const ChatWindow = ({ chat }) => {
           onStartScreenShare={handleStartScreenShare}
           onStopScreenShare={handleStopScreenShare}
           onToggleSpeaker={handleToggleSpeaker}
+          onAddPeople={handleAddPeopleFromCall}
         />
       ) : null}
 
@@ -4002,6 +4057,7 @@ const ChatWindow = ({ chat }) => {
           onClose={handleLeaveGroupCall}
           onStartScreenShare={handleStartGroupScreenShare}
           onStopScreenShare={handleStopGroupScreenShare}
+          onInviteMembers={handleInviteGroupCallMembers}
         />
       ) : null}
 

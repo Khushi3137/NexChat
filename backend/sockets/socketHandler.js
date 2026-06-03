@@ -467,6 +467,47 @@ socket.on('iceCandidate', ({ to, candidate, chatId }) => {
       }
     });
 
+    socket.on('inviteGroupCallMembers', async ({ chatId, participantIds = [] }) => {
+      try {
+        const normalizedChatId = normalizeId(chatId);
+        const groupChat = await Chat.findOne({
+          _id: chatId,
+          participants: userId,
+          isGroupChat: true,
+        }).select('participants');
+
+        if (!groupChat) {
+          throw new Error('Group chat not found');
+        }
+
+        const callRecord = activeGroupCalls.get(normalizedChatId);
+        if (!callRecord) {
+          socket.emit('groupCallEnded', { chatId: normalizedChatId });
+          return;
+        }
+
+        const groupParticipantIds = new Set(groupChat.participants.map((entry) => normalizeId(entry)));
+        const invitees = [...new Set(Array.isArray(participantIds) ? participantIds.map(normalizeId) : [])]
+          .filter((participantId) =>
+            participantId &&
+            participantId !== normalizeId(userId) &&
+            groupParticipantIds.has(participantId) &&
+            !callRecord.participants.has(participantId)
+          );
+
+        invitees.forEach((participantId) => {
+          io.to(participantId).emit('groupCallInvite', {
+            chatId: normalizedChatId,
+            callType: callRecord.callType,
+            from: normalizeId(userId),
+            initiatorId: callRecord.initiatorId,
+          });
+        });
+      } catch (error) {
+        socket.emit('error', { message: error.message });
+      }
+    });
+
     socket.on('groupCallSignal', ({ chatId, to, description, candidate, callType }) => {
       if (!to) return;
 

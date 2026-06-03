@@ -444,6 +444,15 @@ export const useGroupCall = (socket, userId) => {
     resetGroupCallState();
   }, [resetGroupCallState, socket]);
 
+  const inviteGroupCallMembers = useCallback((chatId, participantIds = []) => {
+    if (!socket || !chatId) return;
+
+    socket.emit('inviteGroupCallMembers', {
+      chatId,
+      participantIds,
+    });
+  }, [socket]);
+
   const replaceVideoTrackForPeers = useCallback(async (videoTrack) => {
     const replacements = [...peersRef.current.values()].map((peerConnection) => {
       const sender = peerConnection.getSenders().find((entry) => entry.track?.kind === 'video');
@@ -520,6 +529,7 @@ export const useGroupCall = (socket, userId) => {
     declineGroupCall,
     leaveGroupCall,
     endGroupCall,
+    inviteGroupCallMembers,
     startScreenShare,
     stopScreenShare,
     resetGroupCallState,
