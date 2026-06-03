@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const statusCopy = {
   incoming: 'Incoming call',
@@ -23,6 +23,8 @@ const CallModal = ({
   callType,
   callStatus,
   participantName,
+  localStream,
+  remoteStream,
   localVideoRef,
   remoteVideoRef,
   durationLabel,
@@ -35,6 +37,7 @@ const CallModal = ({
   onStartScreenShare,
   onStopScreenShare,
 }) => {
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const isVideoCall = callType === 'video';
   const supportsScreenShare =
     typeof window !== 'undefined' &&
@@ -45,6 +48,42 @@ const CallModal = ({
   const showEndAction = !showAnswerActions;
   const showScreenShareAction =
     isVideoCall && supportsScreenShare && callStatus === 'in-call' && !showAnswerActions;
+
+  useEffect(() => {
+    const element = localVideoRef?.current;
+    if (!element) return;
+
+    element.srcObject = localStream || null;
+    if (localStream) {
+      element.play?.().catch(() => {});
+    }
+  }, [localStream, localVideoRef]);
+
+  useEffect(() => {
+    const element = remoteVideoRef?.current;
+    if (!element) return;
+
+    element.srcObject = remoteStream || null;
+    setNeedsAudioUnlock(false);
+
+    if (remoteStream) {
+      element.play?.().catch(() => {
+        setNeedsAudioUnlock(true);
+      });
+    }
+  }, [remoteStream, remoteVideoRef]);
+
+  const handleEnableSound = async () => {
+    const element = remoteVideoRef?.current;
+    if (!element) return;
+
+    try {
+      await element.play?.();
+      setNeedsAudioUnlock(false);
+    } catch {
+      setNeedsAudioUnlock(true);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-md">
@@ -76,6 +115,18 @@ const CallModal = ({
                 <div className="flex h-28 w-28 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-3xl font-bold text-white">
                   {(participantName || 'Call').slice(0, 1).toUpperCase()}
                 </div>
+              </div>
+            ) : null}
+
+            {needsAudioUnlock ? (
+              <div className="absolute inset-x-6 top-20 z-20 flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleEnableSound}
+                  className="rounded-2xl border border-[#6affe8]/24 bg-[#6affe8]/14 px-4 py-2 text-sm font-semibold text-[#aef9ff] shadow-[0_14px_36px_rgba(0,0,0,0.35)] transition hover:bg-[#6affe8]/20 hover:text-white"
+                >
+                  Enable sound
+                </button>
               </div>
             ) : null}
 

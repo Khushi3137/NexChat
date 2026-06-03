@@ -82,6 +82,9 @@ Create or edit `frontend/.env`:
 REACT_APP_API_URL=http://localhost:10000/api
 REACT_APP_SOCKET_URL=http://localhost:10000
 REACT_APP_GIPHY_API_KEY=your_giphy_api_key
+REACT_APP_TURN_URL=turn:your-turn-server.com:3478
+REACT_APP_TURN_USERNAME=your_turn_username
+REACT_APP_TURN_CREDENTIAL=your_turn_password
 ```
 
 Start the frontend:
@@ -217,6 +220,9 @@ Set these frontend environment variables in Vercel:
 REACT_APP_API_URL=https://your-backend-url/api
 REACT_APP_SOCKET_URL=https://your-backend-url
 REACT_APP_GIPHY_API_KEY=your_giphy_api_key
+REACT_APP_TURN_URL=turn:your-turn-server.com:3478
+REACT_APP_TURN_USERNAME=your_turn_username
+REACT_APP_TURN_CREDENTIAL=your_turn_password
 ```
 
 ### 🖥️ Backend on Render or Railway
@@ -247,6 +253,7 @@ Set all backend `.env` variables in the hosting dashboard.
 - `CLIENT_URL` should point to the frontend URL.
 - `CLIENT_URLS` can hold allowed frontend origins if multiple client URLs are supported.
 - React environment variables must start with `REACT_APP_`.
+- `REACT_APP_TURN_*` values are optional, but strongly recommended for mobile WebRTC calls on carrier networks.
 
 ## 🔐 Security
 

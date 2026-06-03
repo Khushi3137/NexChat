@@ -1,35 +1,108 @@
 import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useSocket } from '../context/SocketContext';
 import { useChat } from '../context/ChatContext';
+import { useNotification } from './useNotification';
+
+const CALL_RESPONSE_TIMEOUT_MS = 30000;
+const normalizeId = (value) => (typeof value === 'object' ? value?._id : value)?.toString?.() || '';
 
 export const useSocketEvents = () => {
   const { socket } = useSocket();
-  const { addMessage, updateMessageStatus, setTyping } = useChat();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { playNotificationSound } = useNotification();
+  const { addMessage, updateMessageStatus, setTyping, setPendingIncomingCall } = useChat();
 
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('receiveMessage', (message) => {
+    const receiveMessageHandler = (message) => {
       addMessage(message);
-    });
+    };
 
-    socket.on('messageStatusUpdate', ({ messageId, status }) => {
+    const messageStatusHandler = ({ messageId, status }) => {
       updateMessageStatus(messageId, status);
-    });
+    };
 
-    socket.on('userTyping', ({ userId, userName, chatId }) => {
+    const userTypingHandler = ({ userId, userName, chatId }) => {
       setTyping(chatId, userId, userName, true);
-    });
+    };
 
-    socket.on('userStopTyping', ({ userId, chatId }) => {
+    const userStopTypingHandler = ({ userId, chatId }) => {
       setTyping(chatId, userId, null, false);
-    });
+    };
+
+    const incomingCallHandler = ({ signal, from, callType = 'video', chatId }) => {
+      const callChatId = normalizeId(chatId);
+      if (!callChatId) return;
+
+      const activeChatId = location.pathname.match(/^\/chat\/([^/]+)/)?.[1] || '';
+      if (normalizeId(activeChatId) === callChatId) return;
+
+      const receivedAt = Date.now();
+      setPendingIncomingCall({
+        signal,
+        from,
+        callType,
+        chatId: callChatId,
+        receivedAt,
+      });
+      playNotificationSound();
+
+      toast.custom(
+        (toastInstance) => (
+          <div className="max-w-sm rounded-2xl border border-[#6affe8]/20 bg-[#11111d] px-4 py-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
+            <div className="text-sm font-semibold">
+              Incoming {callType === 'video' ? 'video' : 'voice'} call
+            </div>
+            <div className="mt-1 text-xs text-white/55">
+              Open the conversation to answer this call.
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => toast.dismiss(toastInstance.id)}
+                className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/60 transition hover:bg-white/8 hover:text-white"
+              >
+                Later
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(toastInstance.id);
+                  navigate(`/chat/${callChatId}`);
+                }}
+                className="rounded-xl border border-[#6affe8]/24 bg-[#6affe8]/12 px-3 py-1.5 text-xs font-semibold text-[#aef9ff] transition hover:bg-[#6affe8]/18 hover:text-white"
+              >
+                Open
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: CALL_RESPONSE_TIMEOUT_MS }
+      );
+
+      window.setTimeout(() => {
+        setPendingIncomingCall((previous) =>
+          previous?.receivedAt === receivedAt ? null : previous
+        );
+      }, CALL_RESPONSE_TIMEOUT_MS);
+    };
+
+    socket.on('receiveMessage', receiveMessageHandler);
+    socket.on('messageStatusUpdate', messageStatusHandler);
+    socket.on('userTyping', userTypingHandler);
+    socket.on('userStopTyping', userStopTypingHandler);
+    socket.on('incomingCall', incomingCallHandler);
 
     return () => {
-      socket.off('receiveMessage');
-      socket.off('messageStatusUpdate');
-      socket.off('userTyping');
-      socket.off('userStopTyping');
+      socket.off('receiveMessage', receiveMessageHandler);
+      socket.off('messageStatusUpdate', messageStatusHandler);
+      socket.off('userTyping', userTypingHandler);
+      socket.off('userStopTyping', userStopTypingHandler);
+      socket.off('incomingCall', incomingCallHandler);
     };
-  }, [socket]);
+  }, [addMessage, location.pathname, navigate, playNotificationSound, setPendingIncomingCall, setTyping, socket, updateMessageStatus]);
 };

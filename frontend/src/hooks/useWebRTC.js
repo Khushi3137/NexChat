@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const ICE_SERVERS = {
-  iceServers: [
+const getIceServers = () => {
+  const servers = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-  ],
+  ];
+
+  if (process.env.REACT_APP_TURN_URL) {
+    servers.push({
+      urls: process.env.REACT_APP_TURN_URL,
+      username: process.env.REACT_APP_TURN_USERNAME,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+    });
+  }
+
+  return { iceServers: servers };
 };
 
 const getMediaConstraints = (callType = 'video') => ({
@@ -119,7 +129,7 @@ export const useWebRTC = (socket, userId) => {
     cleanupPeerConnection();
 
     console.log('Creating RTCPeerConnection for', targetUserId);
-    const peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    const peerConnection = new RTCPeerConnection(getIceServers());
     peerRef.current = peerConnection;
 
     if (localStreamRef.current) {

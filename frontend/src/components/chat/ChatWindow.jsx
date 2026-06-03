@@ -503,6 +503,8 @@ const ChatWindow = ({ chat }) => {
   const groupCallSoundKeyRef = useRef('');
 
   const {
+    localStream,
+    remoteStream,
     caller,
     startCall,
     answerCall,
@@ -3884,6 +3886,8 @@ const ChatWindow = ({ chat }) => {
           callType={callType}
           callStatus={callStatus}
           participantName={chatName}
+          localStream={localStream}
+          remoteStream={remoteStream}
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}
           durationLabel={callDurationLabel}
