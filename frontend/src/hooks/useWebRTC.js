@@ -86,6 +86,8 @@ export const useWebRTC = (socket, userId) => {
   const [callStatus, setCallStatus] = useState('idle');
   const [caller, setCaller] = useState(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [audioOutputMode, setAudioOutputModeState] = useState('default');
   const [supportsAudioOutputSelection, setSupportsAudioOutputSelection] = useState(false);
   const peerRef = useRef(null);
@@ -105,6 +107,8 @@ export const useWebRTC = (socket, userId) => {
   const syncLocalStream = useCallback((stream) => {
     localStreamRef.current = stream;
     setLocalStream(stream);
+    setIsAudioEnabled(stream ? stream.getAudioTracks().some((track) => track.enabled) : true);
+    setIsVideoEnabled(stream ? stream.getVideoTracks().some((track) => track.enabled) : true);
     syncLocalPreview(screenStreamRef.current || stream);
   }, [syncLocalPreview]);
 
@@ -140,6 +144,30 @@ export const useWebRTC = (socket, userId) => {
 
     await element.setSinkId(nextSinkId);
     setAudioOutputModeState(nextMode);
+  }, []);
+
+  const toggleLocalAudio = useCallback(() => {
+    const audioTracks = localStreamRef.current?.getAudioTracks() || [];
+    if (!audioTracks.length) return true;
+
+    const nextEnabled = !audioTracks.some((track) => track.enabled);
+    audioTracks.forEach((track) => {
+      track.enabled = nextEnabled;
+    });
+    setIsAudioEnabled(nextEnabled);
+    return nextEnabled;
+  }, []);
+
+  const toggleLocalVideo = useCallback(() => {
+    const videoTracks = localStreamRef.current?.getVideoTracks() || [];
+    if (!videoTracks.length) return true;
+
+    const nextEnabled = !videoTracks.some((track) => track.enabled);
+    videoTracks.forEach((track) => {
+      track.enabled = nextEnabled;
+    });
+    setIsVideoEnabled(nextEnabled);
+    return nextEnabled;
   }, []);
 
   const markCallConnected = useCallback(() => {
@@ -491,6 +519,8 @@ export const useWebRTC = (socket, userId) => {
     callStatus,
     caller,
     isScreenSharing,
+    isAudioEnabled,
+    isVideoEnabled,
     audioOutputMode,
     supportsAudioOutputSelection,
     localVideoRef,
@@ -501,6 +531,8 @@ export const useWebRTC = (socket, userId) => {
     endCall,
     startScreenShare,
     stopScreenShare,
+    toggleLocalAudio,
+    toggleLocalVideo,
     setAudioOutputMode,
     resetCallState,
     setCallStatus,

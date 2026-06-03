@@ -516,10 +516,14 @@ const ChatWindow = ({ chat }) => {
     resetCallState,
     callStatus,
     isScreenSharing,
+    isAudioEnabled,
+    isVideoEnabled,
     audioOutputMode,
     supportsAudioOutputSelection,
     localVideoRef,
     remoteVideoRef,
+    toggleLocalAudio,
+    toggleLocalVideo,
     setAudioOutputMode,
     setCallStatus,
     setCaller,
@@ -3945,8 +3949,12 @@ const ChatWindow = ({ chat }) => {
           durationLabel={callDurationLabel}
           isIncoming={callStatus === 'incoming'}
           isScreenSharing={isScreenSharing}
+          isAudioEnabled={isAudioEnabled}
+          isVideoEnabled={isVideoEnabled}
           audioOutputMode={audioOutputMode}
           supportsAudioOutputSelection={supportsAudioOutputSelection}
+          onToggleAudio={toggleLocalAudio}
+          onToggleVideo={toggleLocalVideo}
           onAnswer={handleAnswerIncomingCall}
           onDecline={handleDeclineIncomingCall}
           onEnd={handleEndActiveCall}
