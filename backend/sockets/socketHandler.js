@@ -291,29 +291,88 @@ module.exports = (io) => {
       io.to(chatId).emit('reactionUpdated', { messageId, reactions: msg.reactions });
     });
 
-    socket.on('callUser', ({ userToCall, signalData, callType, from, chatId }) => {
-      console.log(`Call invite: ${from || userId} -> ${userToCall} (${callType || 'video'})`);
-      io.to(userToCall).emit('incomingCall', { signal: signalData, from, callType, chatId });
-    });
+    // socket.on('callUser', ({ userToCall, signalData, callType, from, chatId }) => {
+    //   console.log(`Call invite: ${from || userId} -> ${userToCall} (${callType || 'video'})`);
+    //   io.to(userToCall).emit('incomingCall', { signal: signalData, from, callType, chatId });
+    // });
 
-    socket.on('answerCall', ({ to, signal, chatId }) => {
-      console.log(`Call answered: ${userId} -> ${to}`);
-      io.to(to).emit('callAccepted', { signal, from: userId, chatId });
-    });
+    // socket.on('answerCall', ({ to, signal, chatId }) => {
+    //   console.log(`Call answered: ${userId} -> ${to}`);
+    //   io.to(to).emit('callAccepted', { signal, from: userId, chatId });
+    // });
 
-    socket.on('declineCall', ({ to, chatId, reason = 'declined' }) => {
-      console.log(`Call declined: ${userId} -> ${to} (${reason})`);
-      io.to(to).emit('callDeclined', { from: userId, chatId, reason });
-    });
+    // socket.on('declineCall', ({ to, chatId, reason = 'declined' }) => {
+    //   console.log(`Call declined: ${userId} -> ${to} (${reason})`);
+    //   io.to(to).emit('callDeclined', { from: userId, chatId, reason });
+    // });
 
-    socket.on('endCall', ({ to, chatId, reason = 'ended' }) => {
-      console.log(`Call ended: ${userId} -> ${to} (${reason})`);
-      io.to(to).emit('callEnded', { from: userId, chatId, reason });
-    });
+    // socket.on('endCall', ({ to, chatId, reason = 'ended' }) => {
+    //   console.log(`Call ended: ${userId} -> ${to} (${reason})`);
+    //   io.to(to).emit('callEnded', { from: userId, chatId, reason });
+    // });
 
-    socket.on('iceCandidate', ({ to, candidate, chatId }) => {
-      io.to(to).emit('iceCandidate', { candidate, from: userId, chatId });
-    });
+    // socket.on('iceCandidate', ({ to, candidate, chatId }) => {
+    //   io.to(to).emit('iceCandidate', { candidate, from: userId, chatId });
+    // });
+
+    socket.on('callUser', ({ userToCall, signalData, callType, chatId }) => {
+  if (!userToCall) return;
+
+  console.log(`📞 CALL START: ${userId} → ${userToCall}`);
+
+  io.to(userToCall).emit('incomingCall', {
+    signal: signalData,
+    from: userId,
+    callType: callType || 'video',
+    chatId,
+  });
+});
+
+socket.on('answerCall', ({ to, signal, chatId }) => {
+  if (!to) return;
+
+  console.log(`📞 CALL ACCEPTED: ${userId} → ${to}`);
+
+  io.to(to).emit('callAccepted', {
+    signal,
+    from: userId,
+    chatId,
+  });
+});
+
+socket.on('declineCall', ({ to, chatId, reason = 'declined' }) => {
+  if (!to) return;
+
+  console.log(`❌ CALL DECLINED: ${userId} → ${to}`);
+
+  io.to(to).emit('callDeclined', {
+    from: userId,
+    chatId,
+    reason,
+  });
+});
+
+socket.on('endCall', ({ to, chatId, reason = 'ended' }) => {
+  if (!to) return;
+
+  console.log(`📴 CALL ENDED: ${userId} → ${to}`);
+
+  io.to(to).emit('callEnded', {
+    from: userId,
+    chatId,
+    reason,
+  });
+});
+
+socket.on('iceCandidate', ({ to, candidate, chatId }) => {
+  if (!to || !candidate) return;
+
+  io.to(to).emit('iceCandidate', {
+    candidate,
+    from: userId,
+    chatId,
+  });
+});
 
     socket.on('startGroupCall', async ({ chatId, callType, participantIds = [] }) => {
       try {
