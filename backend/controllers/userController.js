@@ -741,16 +741,27 @@ exports.updateContactAlias = async (req, res) => {
     return res.status(404).json({ message: 'Contact not found' });
   }
 
-  const update = alias
-    ? { $set: { [`contactAliases.${targetUserId}`]: alias } }
-    : { $unset: { [`contactAliases.${targetUserId}`]: '' } };
+  const user = await User.findById(req.user.id).select('contactAliases');
+  if (!user) {
+    return res.status(401).json({ message: 'User not found' });
+  }
 
-  const updatedUser = await User.findByIdAndUpdate(req.user.id, update, { new: true }).select('contactAliases');
+  if (!user.contactAliases) {
+    user.contactAliases = new Map();
+  }
+
+  if (alias) {
+    user.contactAliases.set(targetUserId, alias);
+  } else {
+    user.contactAliases.delete(targetUserId);
+  }
+
+  await user.save();
 
   res.json({
     targetUserId,
     alias,
-    contactAliases: serializeContactAliases(updatedUser?.contactAliases),
+    contactAliases: serializeContactAliases(user.contactAliases),
   });
 };
 

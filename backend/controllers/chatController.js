@@ -26,9 +26,9 @@ const resolveViewerContext = (viewerOrAliases) => {
     viewerOrAliases
     && typeof viewerOrAliases === 'object'
     && (
-      Object.prototype.hasOwnProperty.call(viewerOrAliases, 'contactAliases')
-      || Object.prototype.hasOwnProperty.call(viewerOrAliases, 'friends')
-      || Object.prototype.hasOwnProperty.call(viewerOrAliases, 'contacts')
+      viewerOrAliases.contactAliases !== undefined
+      || viewerOrAliases.friends !== undefined
+      || viewerOrAliases.contacts !== undefined
     )
   ) {
     return viewerOrAliases;

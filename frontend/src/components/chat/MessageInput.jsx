@@ -146,6 +146,7 @@ const MessageInput = ({
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [mentionState, setMentionState] = useState(null);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
   const imageFileRef = useRef(null);
   const videoFileRef = useRef(null);
   const documentFileRef = useRef(null);
@@ -171,7 +172,7 @@ const MessageInput = ({
         .filter((participant) => normalizeId(participant) && normalizeId(participant) !== normalizeId(currentUserId))
         .map((participant) => ({
           ...participant,
-          mentionLabel: String(participant?.name || '').trim(),
+          mentionLabel: String(participant?.localName || participant?.name || '').trim(),
         }))
         .filter((participant) => participant.mentionLabel)
     : [];
@@ -233,8 +234,11 @@ const MessageInput = ({
       clearInterval(recordingIntervalRef.current);
       mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
       mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop());
+      if (pendingAttachment?.previewUrl) {
+        URL.revokeObjectURL(pendingAttachment.previewUrl);
+      }
     },
-    []
+    [pendingAttachment]
   );
 
   useEffect(() => {
@@ -340,9 +344,48 @@ const MessageInput = ({
     onStopTyping();
   };
 
+  const clearPendingAttachment = () => {
+    setPendingAttachment((previous) => {
+      if (previous?.previewUrl) {
+        URL.revokeObjectURL(previous.previewUrl);
+      }
+
+      return null;
+    });
+  };
+
   const handleSend = async () => {
-    if (disabled) return;
+    if (disabled || uploading) return;
     const text = content.trim();
+
+    if (pendingAttachment) {
+      const scheduledTime = scheduleSelection ? getScheduledSendTime() : null;
+      if (scheduleSelection && !scheduledTime) {
+        return;
+      }
+
+      setUploading(true);
+      try {
+        const { url } = await uploadService.uploadFile(pendingAttachment.file);
+        const didSend = await onSend({
+          content: text,
+          mediaUrl: url,
+          messageType: pendingAttachment.messageType,
+          ...(scheduledTime ? { scheduledTime } : {}),
+        });
+
+        if (didSend !== false) {
+          clearPendingAttachment();
+          finalizeSend();
+        }
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Upload failed');
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
     if (!text) return;
 
     if (scheduleSelection) {
@@ -489,6 +532,35 @@ const MessageInput = ({
     const file = event.target.files?.[0];
     await handleChosenFile(file, explicitType);
     event.target.value = '';
+  };
+
+  const handlePaste = async (event) => {
+    if (disabled || uploading) return;
+
+    const clipboardItems = Array.from(event.clipboardData?.items || []);
+    const pastedImage = clipboardItems
+      .find((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      ?.getAsFile();
+
+    if (!pastedImage) return;
+
+    event.preventDefault();
+
+    const extension = pastedImage.type.split('/')[1] || 'png';
+    const screenshotFile = new File(
+      [pastedImage],
+      `pasted-screenshot-${Date.now()}.${extension}`,
+      { type: pastedImage.type || 'image/png' }
+    );
+
+    clearPendingAttachment();
+    setPendingAttachment({
+      file: screenshotFile,
+      messageType: 'image',
+      previewUrl: URL.createObjectURL(screenshotFile),
+    });
+    setShowAttachmentMenu(false);
+    toast.success('Screenshot ready. Press Enter to send.');
   };
 
   const handleGifSelect = async (payload) => {
@@ -852,6 +924,32 @@ const MessageInput = ({
         </div>
         ) : null}
 
+        {pendingAttachment ? (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#14141f]/92 px-3 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.3)]">
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src={pendingAttachment.previewUrl}
+              alt="Pending screenshot"
+              className="h-14 w-14 shrink-0 rounded-xl object-cover"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-white">Screenshot ready</div>
+              <div className="text-xs text-white/45">
+                {scheduleSelection ? 'Press Enter to schedule' : 'Press Enter to send'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={clearPendingAttachment}
+            disabled={uploading}
+            className="shrink-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/55 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Remove
+          </button>
+        </div>
+        ) : null}
+
         {mentionSuggestions.length ? (
         <div className="mb-3 rounded-2xl border border-white/10 bg-[#14141f]/92 p-2 shadow-[0_18px_48px_rgba(0,0,0,0.3)]">
           <div className="mb-2 px-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-white/32">
@@ -1054,6 +1152,7 @@ const MessageInput = ({
             value={content}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onClick={(event) => setMentionState(getActiveMentionState(event.target.value, event.target.selectionStart))}
             onKeyUp={(event) => {
               if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) return;
@@ -1134,6 +1233,10 @@ const MessageInput = ({
                 ? 'Uploading...'
                 : disabledReason
                   ? disabledReason
+                    : pendingAttachment
+                    ? scheduleSelection
+                      ? 'Enter to schedule screenshot'
+                      : 'Enter to send screenshot'
                     : scheduleSelection
                     ? 'Enter to schedule'
                     : 'Enter to send'}
@@ -1144,7 +1247,7 @@ const MessageInput = ({
         <button
           type="button"
           onClick={handleSend}
-          disabled={disabled || !content.trim() || uploading || isSharingLocation}
+          disabled={disabled || (!content.trim() && !pendingAttachment) || uploading || isSharingLocation}
           className="h-10 min-w-[88px] flex-1 rounded-xl border border-[#7c6aff]/30 bg-gradient-to-br from-[#7c6aff] to-[#5f7dff] px-4 text-sm font-medium text-white shadow-[0_12px_28px_rgba(124,106,255,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:h-[46px] sm:min-w-[82px] sm:flex-none sm:rounded-2xl sm:px-5"
         >
           {scheduleSelection ? 'Schedule' : 'Send'}

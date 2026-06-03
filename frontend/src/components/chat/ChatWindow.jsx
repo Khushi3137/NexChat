@@ -352,6 +352,28 @@ const applyContactAliasToChat = (chatEntry, targetUserId, alias) => {
     : chatEntry;
 };
 
+const applyContactAliasToMessages = (items, targetUserId, alias) =>
+  items.map((message) => {
+    const nextMessage = { ...message };
+
+    if (normalizeId(nextMessage.senderId) === normalizeId(targetUserId) && typeof nextMessage.senderId === 'object') {
+      nextMessage.senderId = alias
+        ? { ...nextMessage.senderId, localName: alias }
+        : Object.fromEntries(Object.entries(nextMessage.senderId).filter(([key]) => key !== 'localName'));
+    }
+
+    if (normalizeId(nextMessage.replyTo?.senderId) === normalizeId(targetUserId) && typeof nextMessage.replyTo?.senderId === 'object') {
+      nextMessage.replyTo = {
+        ...nextMessage.replyTo,
+        senderId: alias
+          ? { ...nextMessage.replyTo.senderId, localName: alias }
+          : Object.fromEntries(Object.entries(nextMessage.replyTo.senderId).filter(([key]) => key !== 'localName')),
+      };
+    }
+
+    return nextMessage;
+  });
+
 const applyParticipantStateToChat = (chatEntry, targetUserId, updates) => {
   if (!chatEntry || !Array.isArray(chatEntry.participants)) return chatEntry;
 
@@ -450,6 +472,7 @@ const ChatWindow = ({ chat }) => {
   const [addingGroupContactId, setAddingGroupContactId] = useState('');
   const [isMemberInfoOpen, setIsMemberInfoOpen] = useState(false);
   const [selectedGroupMemberId, setSelectedGroupMemberId] = useState('');
+  const [groupMemberAliasDraft, setGroupMemberAliasDraft] = useState('');
   const [isLeavingGroup, setIsLeavingGroup] = useState(false);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
@@ -536,7 +559,10 @@ const ChatWindow = ({ chat }) => {
   const handleOpenChatAvatar = () => openProfilePhotoViewer(chatAvatar, chatName);
   const handleOpenMessageAvatar = (message) => {
     const senderDetails = typeof message?.senderId === 'object' ? message.senderId : null;
-    const senderName = senderDetails?.localName || senderDetails?.name || 'Profile photo';
+    const senderParticipant = chat.participants?.find(
+      (participant) => normalizeId(participant) === normalizeId(message?.senderId)
+    );
+    const senderName = senderParticipant?.localName || senderDetails?.localName || senderParticipant?.name || senderDetails?.name || 'Profile photo';
     openProfilePhotoViewer(senderDetails?.profilePicture, senderName);
   };
   const other = chat.participants?.find((participant) => participant._id !== user._id);
@@ -562,9 +588,15 @@ const ChatWindow = ({ chat }) => {
   const readReceiptDetails = readReceiptMessage
     ? getGroupMessageReadReceiptDetails(readReceiptMessage, chat.participants, user._id)
     : { seenMembers: [], unseenMembers: [], seenCount: 0, totalRecipients: 0 };
+  const selectedGroupMember = groupParticipants.find(
+    (participant) => normalizeId(participant) === normalizeId(selectedGroupMemberId)
+  ) || null;
   const existingContactAlias = other?.localName?.trim() || '';
   const normalizedContactAliasDraft = contactAliasDraft.trim();
   const hasContactAliasChanges = normalizedContactAliasDraft !== existingContactAlias;
+  const existingGroupMemberAlias = selectedGroupMember?.localName?.trim() || '';
+  const normalizedGroupMemberAliasDraft = groupMemberAliasDraft.trim();
+  const hasGroupMemberAliasChanges = normalizedGroupMemberAliasDraft !== existingGroupMemberAlias;
   const isOtherUserBlocked =
     !chat.isGroupChat
     && Array.isArray(user?.blockedUsers)
@@ -931,6 +963,11 @@ const ChatWindow = ({ chat }) => {
     setContactAliasDraft(other?.localName || '');
     setIsSavingContactAlias(false);
   }, [other?._id, other?.localName]);
+
+  useEffect(() => {
+    setGroupMemberAliasDraft(selectedGroupMember?.localName || '');
+    setIsSavingContactAlias(false);
+  }, [selectedGroupMember?._id, selectedGroupMember?.localName]);
 
   useEffect(() => {
     setGroupNameDraft(chat.chatName || '');
@@ -1686,14 +1723,21 @@ const ChatWindow = ({ chat }) => {
     }
   };
 
-  const handleSaveContactAlias = async (nextAlias = normalizedContactAliasDraft) => {
-    if (!other?._id) return;
-    if (nextAlias === existingContactAlias) return;
+  const handleSaveContactAlias = async (
+    targetParticipant = other,
+    nextAlias = normalizedContactAliasDraft,
+    onDraftSaved = setContactAliasDraft
+  ) => {
+    const targetUserId = normalizeId(targetParticipant?._id);
+    const existingAlias = targetParticipant?.localName?.trim() || '';
+
+    if (!targetUserId) return;
+    if (nextAlias === existingAlias) return;
 
     setIsSavingContactAlias(true);
 
     try {
-      const response = await userService.updateContactAlias(other._id, nextAlias);
+      const response = await userService.updateContactAlias(targetUserId, nextAlias);
       const savedAlias = response.alias || '';
 
       updateUser((previous) =>
@@ -1704,9 +1748,10 @@ const ChatWindow = ({ chat }) => {
             }
           : previous
       );
-      setChats((previous) => previous.map((entry) => applyContactAliasToChat(entry, other._id, savedAlias)));
-      setSelectedChat((previous) => applyContactAliasToChat(previous, other._id, savedAlias));
-      setContactAliasDraft(savedAlias);
+      setChats((previous) => previous.map((entry) => applyContactAliasToChat(entry, targetUserId, savedAlias)));
+      setSelectedChat((previous) => applyContactAliasToChat(previous, targetUserId, savedAlias));
+      setMessages((previous) => applyContactAliasToMessages(previous, targetUserId, savedAlias));
+      onDraftSaved(savedAlias);
       toast.success(savedAlias ? 'Custom name saved' : 'Custom name removed');
     } catch (error) {
       if (!error.response) {
@@ -2620,11 +2665,18 @@ const ChatWindow = ({ chat }) => {
   const isGroupCallHost =
     normalizeId(groupCallSessionRef.current?.initiatorId) === normalizeId(user._id);
   const activeSearchResult = messageSearchResults[activeSearchResultIndex] || null;
+  const activeSearchResultSender = activeSearchResult
+    ? chat.participants?.find((participant) => normalizeId(participant) === normalizeId(activeSearchResult.senderId))
+    : null;
   const activeSearchResultSenderLabel = activeSearchResult
     ? normalizeId(activeSearchResult.senderId) === normalizeId(user._id)
       ? 'You'
       : typeof activeSearchResult.senderId === 'object'
-        ? activeSearchResult.senderId?.name || 'Participant'
+        ? activeSearchResultSender?.localName
+          || activeSearchResult.senderId?.localName
+          || activeSearchResultSender?.name
+          || activeSearchResult.senderId?.name
+          || 'Participant'
         : 'Participant'
     : '';
 
@@ -2960,10 +3012,12 @@ const ChatWindow = ({ chat }) => {
                           const isExpanded = participantId === normalizeId(selectedGroupMemberId);
                           const isParticipantAdmin = Array.isArray(chat.admins)
                             && chat.admins.some((adminId) => normalizeId(adminId) === participantId);
+                          const isCurrentUserParticipant = participantId === normalizeId(user._id);
                           const canAddParticipantAsContact =
                             participantId
-                            && participantId !== normalizeId(user._id)
+                            && !isCurrentUserParticipant
                             && !participant?.isContact;
+                          const canRenameParticipant = participantId && !isCurrentUserParticipant;
                           const contactLabel = participantId === normalizeId(user._id)
                             ? 'This is you'
                             : participant?.isFriend
@@ -2988,7 +3042,7 @@ const ChatWindow = ({ chat }) => {
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-sm font-semibold text-white">
-                                    {participant?.name || participantName}
+                                    {participantName}
                                   </div>
                                 </div>
                                 <span className={`shrink-0 rounded-full border px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${
@@ -3030,6 +3084,52 @@ const ChatWindow = ({ chat }) => {
                                       </div>
                                     ) : null}
                                   </div>
+
+                                  {canRenameParticipant ? (
+                                    <div className="mt-3 rounded-[18px] border border-white/8 bg-[#0d0d17]/60 px-3 py-3">
+                                      <label
+                                        htmlFor={`group-member-alias-${participantId}`}
+                                        className="block text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-white/32"
+                                      >
+                                        Custom Name
+                                      </label>
+                                      <input
+                                        id={`group-member-alias-${participantId}`}
+                                        type="text"
+                                        value={groupMemberAliasDraft}
+                                        onChange={(event) => setGroupMemberAliasDraft(event.target.value)}
+                                        maxLength={40}
+                                        placeholder={`Save ${String(participant?.name || 'member').split(' ')[0]} as...`}
+                                        className="mt-2 w-full rounded-2xl border border-white/10 bg-[#0a0a12]/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#7c6aff]"
+                                      />
+                                      <div className="mt-3 grid grid-cols-3 gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setGroupMemberAliasDraft(existingGroupMemberAlias)}
+                                          disabled={isSavingContactAlias || !hasGroupMemberAliasChanges}
+                                          className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[0.7rem] font-semibold text-white/60 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+                                        >
+                                          Reset
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveContactAlias(participant, '', setGroupMemberAliasDraft)}
+                                          disabled={isSavingContactAlias || (!existingGroupMemberAlias && !normalizedGroupMemberAliasDraft)}
+                                          className="min-w-0 rounded-xl border border-[#ff8ca8]/20 bg-[#ff8ca8]/8 px-3 py-2 text-[0.7rem] font-semibold text-[#ffd5df] transition hover:bg-[#ff8ca8]/15 disabled:cursor-not-allowed disabled:opacity-55"
+                                        >
+                                          Remove
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveContactAlias(participant, normalizedGroupMemberAliasDraft, setGroupMemberAliasDraft)}
+                                          disabled={isSavingContactAlias || !hasGroupMemberAliasChanges}
+                                          className="min-w-0 rounded-xl border border-[#7c6aff]/30 bg-[#7c6aff]/14 px-3 py-2 text-[0.7rem] font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/22 disabled:cursor-not-allowed disabled:opacity-55"
+                                        >
+                                          {isSavingContactAlias ? 'Saving...' : 'Save'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : null}
 
                                   {canAddParticipantAsContact ? (
                                     <div className="mt-3 flex justify-end">
@@ -3179,7 +3279,7 @@ const ChatWindow = ({ chat }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSaveContactAlias('')}
+                  onClick={() => handleSaveContactAlias(other, '', setContactAliasDraft)}
                   disabled={isSavingContactAlias || (!existingContactAlias && !normalizedContactAliasDraft)}
                   className="min-w-0 rounded-xl border border-[#ff8ca8]/20 bg-[#ff8ca8]/8 px-3 py-2 text-[0.74rem] font-semibold text-[#ffd5df] transition hover:bg-[#ff8ca8]/15 disabled:cursor-not-allowed disabled:opacity-55"
                 >
@@ -3187,7 +3287,7 @@ const ChatWindow = ({ chat }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSaveContactAlias()}
+                  onClick={() => handleSaveContactAlias(other, normalizedContactAliasDraft, setContactAliasDraft)}
                   disabled={isSavingContactAlias || !hasContactAliasChanges}
                   className="col-span-2 min-w-0 rounded-xl border border-[#7c6aff]/30 bg-[#7c6aff]/14 px-3 py-2 text-[0.74rem] font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/22 disabled:cursor-not-allowed disabled:opacity-55"
                 >
@@ -3709,13 +3809,13 @@ const ChatWindow = ({ chat }) => {
                       >
                         <Avatar
                           src={participant.profilePicture}
-                          name={participant.name}
+                          name={getParticipantDisplayName(participant)}
                           size={10}
                           online={participant.isOnline}
                           shape="soft"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-white">{participant.name}</div>
+                          <div className="truncate text-sm font-semibold text-white">{getParticipantDisplayName(participant)}</div>
                           <div className="text-xs text-[#aef9ff]">Seen</div>
                         </div>
                       </div>
@@ -3745,13 +3845,13 @@ const ChatWindow = ({ chat }) => {
                       >
                         <Avatar
                           src={participant.profilePicture}
-                          name={participant.name}
+                          name={getParticipantDisplayName(participant)}
                           size={10}
                           online={participant.isOnline}
                           shape="soft"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-white">{participant.name}</div>
+                          <div className="truncate text-sm font-semibold text-white">{getParticipantDisplayName(participant)}</div>
                           <div className="text-xs text-white/42">Waiting for read receipt</div>
                         </div>
                       </div>

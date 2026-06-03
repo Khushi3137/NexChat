@@ -2,22 +2,25 @@ import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/sidebar/Sidebar';
 import ChatWindow from '../components/chat/ChatWindow';
+import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { chatService } from '../services/chatService';
+import { applyContactAliasesToChat } from '../utils/helpers';
 
 const ChatPage = () => {
   const { chatId } = useParams();
   const { selectedChat, setSelectedChat } = useChat();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!selectedChat || selectedChat._id !== chatId) {
       chatService
         .getChatById(chatId)
-        .then(setSelectedChat)
+        .then((chat) => setSelectedChat(applyContactAliasesToChat(chat, user)))
         .catch(() => navigate('/app'));
     }
-  }, [chatId, navigate, selectedChat, setSelectedChat]);
+  }, [chatId, navigate, selectedChat, setSelectedChat, user]);
 
   return (
     <div className="flex h-screen min-h-0 overflow-hidden bg-[#050508]">

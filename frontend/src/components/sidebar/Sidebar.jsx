@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { chatService } from '../../services/chatService';
 import api from '../../services/api';
-import { getChatName } from '../../utils/helpers';
+import { applyContactAliasesToChat, applyContactAliasesToChats, getChatName } from '../../utils/helpers';
 import Avatar from '../shared/Avatar';
 import CreateGroup from '../groups/CreateGroup';
 import Modal from '../shared/Modal';
@@ -78,9 +78,12 @@ const Sidebar = () => {
       return undefined;
     }
 
-    chatService.getUserChats().then(setChats).catch(() => setChats([]));
+    chatService
+      .getUserChats()
+      .then((data) => setChats(applyContactAliasesToChats(data, user)))
+      .catch(() => setChats([]));
     return undefined;
-  }, [setChats, user?._id]);
+  }, [setChats, user]);
 
   useEffect(() => {
     setSearch('');
@@ -126,8 +129,9 @@ const Sidebar = () => {
   }, [search, user?._id]);
 
   const syncOpenedChat = (chat) => {
-    setChats((previous) => upsertChatInList(previous, chat));
-    setSelectedChat(chat);
+    const chatWithAliases = applyContactAliasesToChat(chat, user);
+    setChats((previous) => upsertChatInList(previous, chatWithAliases));
+    setSelectedChat(chatWithAliases);
     navigate(`/chat/${chat._id}`);
     setSearch('');
     setSearchResults([]);
@@ -138,7 +142,7 @@ const Sidebar = () => {
 
   const openExistingChat = async (chatId) => {
     try {
-      const chat = await chatService.getChatById(chatId);
+      const chat = applyContactAliasesToChat(await chatService.getChatById(chatId), user);
       syncOpenedChat(chat);
     } catch {
       toast.error('Failed to open chat');

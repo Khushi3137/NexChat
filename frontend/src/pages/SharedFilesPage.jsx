@@ -8,7 +8,7 @@ import Sidebar from '../components/sidebar/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { chatService } from '../services/chatService';
-import { getChatAvatar, getChatName } from '../utils/helpers';
+import { applyContactAliasesToChat, applyContactAliasesToChats, getChatAvatar, getChatName } from '../utils/helpers';
 
 const extractLinks = (text = '') => text.match(/https?:\/\/[^\s]+|www\.[^\s]+/gi) || [];
 const normalizeId = (value) => (typeof value === 'object' ? value?._id : value)?.toString?.() || '';
@@ -81,9 +81,9 @@ const SharedFilesPage = () => {
 
     chatService
       .getChatById(chatId)
-      .then(setSelectedChat)
+      .then((nextChat) => setSelectedChat(applyContactAliasesToChat(nextChat, user)))
       .catch(() => navigate('/app'));
-  }, [chat, chatId, navigate, setSelectedChat]);
+  }, [chat, chatId, navigate, setSelectedChat, user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -270,7 +270,7 @@ const SharedFilesPage = () => {
     if (!chats.length) {
       try {
         const nextChats = await chatService.getUserChats();
-        setChats(Array.isArray(nextChats) ? nextChats : []);
+        setChats(applyContactAliasesToChats(nextChats, user));
       } catch {
         toast.error('Failed to load conversations');
       }

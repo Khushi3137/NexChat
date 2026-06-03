@@ -67,7 +67,7 @@ const getMentionParts = (content, participants) => {
   }
 
   const mentionLabels = participants
-    .map((participant) => String(participant?.name || '').trim())
+    .map((participant) => String(participant?.localName || participant?.name || '').trim())
     .filter(Boolean)
     .sort((left, right) => right.length - left.length);
 
@@ -137,12 +137,15 @@ const MessageBubble = ({
   const bubbleRef = useRef(null);
   const bubbleCardRef = useRef(null);
   const sender = typeof message.senderId === 'object' ? message.senderId : null;
+  const senderParticipant = chat?.participants?.find(
+    (participant) => normalizeId(participant) === normalizeId(message.senderId)
+  );
   const isAIMessage = message.messageType === 'ai';
   const displaySenderName = isAIMessage
     ? chat?.isAIBotChat
       ? 'AI Bot'
       : 'Nexus AI'
-    : sender?.name;
+    : senderParticipant?.localName || sender?.localName || senderParticipant?.name || sender?.name;
   const displayAvatarSrc = isAIMessage ? '' : sender?.profilePicture;
   const mediaType = message.messageType || 'text';
   const callDetails = mediaType === 'call' ? message.call || null : null;
