@@ -36,9 +36,15 @@ const CallModal = ({
   onStopScreenShare,
 }) => {
   const isVideoCall = callType === 'video';
+  const supportsScreenShare =
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    typeof navigator !== 'undefined' &&
+    Boolean(navigator.mediaDevices?.getDisplayMedia);
   const showAnswerActions = isIncoming && callStatus === 'incoming';
   const showEndAction = !showAnswerActions;
-  const showScreenShareAction = isVideoCall && callStatus === 'in-call' && !showAnswerActions;
+  const showScreenShareAction =
+    isVideoCall && supportsScreenShare && callStatus === 'in-call' && !showAnswerActions;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-md">
@@ -55,7 +61,9 @@ const CallModal = ({
           <div className="relative min-h-[360px] overflow-hidden bg-[#040408]">
             {isVideoCall ? (
               <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
-            ) : null}
+            ) : (
+              <audio ref={remoteVideoRef} autoPlay playsInline />
+            )}
 
             <div className={`absolute inset-0 ${
               isVideoCall

@@ -143,6 +143,7 @@ export const useWebRTC = (socket, userId) => {
       socket.emit('iceCandidate', {
         to: targetUserId,
         candidate: event.candidate,
+        chatId: peerConnection.__chatId,
       });
     };
 
@@ -224,9 +225,14 @@ export const useWebRTC = (socket, userId) => {
 
     const handleIceCandidate = async ({ candidate }) => {
       console.log('Received remote ICE candidate:', candidate);
-      if (!candidate || !peerRef.current) return;
+      if (!candidate) return;
 
       const nextCandidate = new RTCIceCandidate(candidate);
+
+      if (!peerRef.current) {
+        pendingCandidatesRef.current.push(nextCandidate);
+        return;
+      }
 
       if (peerRef.current.remoteDescription?.type) {
         await peerRef.current.addIceCandidate(nextCandidate).catch((err) => {
@@ -257,6 +263,7 @@ export const useWebRTC = (socket, userId) => {
       syncLocalStream(stream);
 
       const peerConnection = createPeerConnection(targetUserId);
+      peerConnection.__chatId = metadata.chatId;
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
@@ -284,6 +291,7 @@ export const useWebRTC = (socket, userId) => {
       syncLocalStream(stream);
 
       const peerConnection = createPeerConnection(callerId);
+      peerConnection.__chatId = metadata.chatId;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
       await flushPendingCandidates();
 

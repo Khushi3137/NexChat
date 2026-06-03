@@ -143,6 +143,7 @@ export const ChatProvider = ({ children }) => {
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
+  const [pendingIncomingCall, setPendingIncomingCall] = useState(null);
   const currentUserId = normalizeId(user?._id);
 
   const resetChatState = useCallback(() => {
@@ -151,6 +152,7 @@ export const ChatProvider = ({ children }) => {
     setChats([]);
     setMessages([]);
     setTypingUsers({});
+    setPendingIncomingCall(null);
   }, []);
 
   const addMessage = useCallback((message) => {
@@ -459,6 +461,7 @@ export const ChatProvider = ({ children }) => {
       removeChatFromState,
       markChatAsRead,
       typingUsers, setTyping,
+      pendingIncomingCall, setPendingIncomingCall,
     }}>
       {children}
     </ChatContext.Provider>

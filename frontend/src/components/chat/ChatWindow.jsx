@@ -436,6 +436,8 @@ const ChatWindow = ({ chat }) => {
     setActiveChatId,
     removeChatFromState,
     markChatAsRead,
+    pendingIncomingCall,
+    setPendingIncomingCall,
   } = useChat();
   const [replyTo, setReplyTo] = useState(null);
   const [pinnedMsg, setPinnedMsg] = useState(null);
@@ -1426,26 +1428,79 @@ const ChatWindow = ({ chat }) => {
     };
 
     const incomingCallHandler = ({ signal, from, callType: nextCallType, chatId: incomingChatId }) => {
-      if (incomingChatId && normalizeId(incomingChatId) !== normalizeId(chat._id)) return;
+      const callChatId = incomingChatId || chat._id;
+      const isCurrentChatCall = normalizeId(callChatId) === normalizeId(chat._id);
 
       if (callSessionRef.current || groupCallSessionRef.current) {
         socket.emit('declineCall', {
           to: from,
-          chatId: incomingChatId || chat._id,
+          chatId: callChatId,
           reason: 'busy',
         });
         return;
       }
 
+      if (!isCurrentChatCall) {
+        const receivedAt = Date.now();
+        setPendingIncomingCall({
+          signal,
+          from,
+          callType: nextCallType,
+          chatId: callChatId,
+          receivedAt,
+        });
+        playNotificationSound();
+
+        toast.custom(
+          (toastInstance) => (
+            <div className="max-w-sm rounded-2xl border border-[#6affe8]/20 bg-[#11111d] px-4 py-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
+              <div className="text-sm font-semibold">
+                Incoming {nextCallType === 'video' ? 'video' : 'voice'} call
+              </div>
+              <div className="mt-1 text-xs text-white/55">
+                Open the conversation to answer this call.
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => toast.dismiss(toastInstance.id)}
+                  className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/60 transition hover:bg-white/8 hover:text-white"
+                >
+                  Later
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.dismiss(toastInstance.id);
+                    navigate(`/chat/${callChatId}`);
+                  }}
+                  className="rounded-xl border border-[#6affe8]/24 bg-[#6affe8]/12 px-3 py-1.5 text-xs font-semibold text-[#aef9ff] transition hover:bg-[#6affe8]/18 hover:text-white"
+                >
+                  Open
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: CALL_RESPONSE_TIMEOUT_MS }
+        );
+
+        window.setTimeout(() => {
+          setPendingIncomingCall((previous) =>
+            previous?.receivedAt === receivedAt ? null : previous
+          );
+        }, CALL_RESPONSE_TIMEOUT_MS);
+        return;
+      }
+
       callSessionRef.current = {
-        chatId: incomingChatId || chat._id,
+        chatId: callChatId,
         callType: nextCallType,
         initiatorId: from,
         receiverId: user._id,
         startedAt: new Date().toISOString(),
         answeredAt: null,
       };
-      setCaller({ id: from, signal, callType: nextCallType, chatId: incomingChatId || chat._id });
+      setCaller({ id: from, signal, callType: nextCallType, chatId: callChatId });
       setCallType(nextCallType);
       setCallDurationSeconds(0);
       setCallStatus('incoming');
@@ -1462,12 +1517,27 @@ const ChatWindow = ({ chat }) => {
     };
 
     const callDeclinedHandler = ({ chatId: callChatId, reason = 'declined' }) => {
-      if (callChatId && normalizeId(callChatId) !== normalizeId(chat._id)) return;
+      const activeCallChatId = normalizeId(callSessionRef.current?.chatId);
+      if (
+        callChatId
+        && normalizeId(callChatId) !== normalizeId(chat._id)
+        && normalizeId(callChatId) !== activeCallChatId
+      ) {
+        return;
+      }
+
       void completeCallSession(reason === 'declined' ? 'declined' : 'missed');
     };
 
     const callEndedHandler = ({ chatId: callChatId }) => {
-      if (callChatId && normalizeId(callChatId) !== normalizeId(chat._id)) return;
+      const activeCallChatId = normalizeId(callSessionRef.current?.chatId);
+      if (
+        callChatId
+        && normalizeId(callChatId) !== normalizeId(chat._id)
+        && normalizeId(callChatId) !== activeCallChatId
+      ) {
+        return;
+      }
 
       const activeSession = callSessionRef.current;
       if (!activeSession) {
@@ -1502,7 +1572,50 @@ const ChatWindow = ({ chat }) => {
       socket.off('callDeclined', callDeclinedHandler);
       socket.off('callEnded', callEndedHandler);
     };
-  }, [addMessage, chat._id, clearPendingCallTimeout, completeCallSession, editingScheduledId, playNotificationSound, resetCallState, setCallStatus, setCaller, setMessages, socket, user._id]);
+  }, [addMessage, chat._id, clearPendingCallTimeout, completeCallSession, editingScheduledId, navigate, playNotificationSound, resetCallState, setCallStatus, setCaller, setMessages, setPendingIncomingCall, socket, user._id]);
+
+  useEffect(() => {
+    if (!pendingIncomingCall) return;
+    if (normalizeId(pendingIncomingCall.chatId) !== normalizeId(chat._id)) return;
+
+    if (callSessionRef.current || groupCallSessionRef.current) {
+      socket?.emit('declineCall', {
+        to: pendingIncomingCall.from,
+        chatId: pendingIncomingCall.chatId,
+        reason: 'busy',
+      });
+      setPendingIncomingCall(null);
+      return;
+    }
+
+    callSessionRef.current = {
+      chatId: pendingIncomingCall.chatId,
+      callType: pendingIncomingCall.callType,
+      initiatorId: pendingIncomingCall.from,
+      receiverId: user._id,
+      startedAt: new Date(pendingIncomingCall.receivedAt || Date.now()).toISOString(),
+      answeredAt: null,
+    };
+    setCaller({
+      id: pendingIncomingCall.from,
+      signal: pendingIncomingCall.signal,
+      callType: pendingIncomingCall.callType,
+      chatId: pendingIncomingCall.chatId,
+    });
+    setCallType(pendingIncomingCall.callType);
+    setCallDurationSeconds(0);
+    setCallStatus('incoming');
+    setShowCall(true);
+    clearPendingCallTimeout();
+    callTimeoutRef.current = window.setTimeout(() => {
+      void completeCallSession('missed', {
+        emitAction: 'decline',
+        remoteUserId: pendingIncomingCall.from,
+        declineReason: 'timeout',
+      });
+    }, CALL_RESPONSE_TIMEOUT_MS);
+    setPendingIncomingCall(null);
+  }, [chat._id, clearPendingCallTimeout, completeCallSession, pendingIncomingCall, setCallStatus, setCaller, setPendingIncomingCall, socket, user._id]);
 
   useEffect(() => {
     const nextCount = messages.length;
@@ -1956,7 +2069,7 @@ const ChatWindow = ({ chat }) => {
     if (!caller?.id || !caller?.signal) return;
 
     try {
-      await answerCall(caller.signal, caller.id, callType, { chatId: chat._id });
+      await answerCall(caller.signal, caller.id, callType, { chatId: caller.chatId || chat._id });
     } catch (error) {
       void completeCallSession('missed', {
         emitAction: 'decline',
