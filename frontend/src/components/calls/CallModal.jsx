@@ -19,6 +19,93 @@ const ScreenShareIcon = ({ className = 'h-4 w-4' }) => (
   </svg>
 );
 
+const SpeakerIcon = ({ className = 'h-4 w-4' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M4 9v6h4l5 4V5L8 9H4Z" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 8.5a5 5 0 0 1 0 7" strokeLinecap="round" />
+    <path d="M18.5 6a8.5 8.5 0 0 1 0 12" strokeLinecap="round" />
+  </svg>
+);
+
+export const MinimizedCallWidget = ({
+  callType,
+  callStatus,
+  participantName,
+  localStream,
+  remoteStream,
+  localVideoRef,
+  remoteVideoRef,
+  durationLabel,
+  onRestore,
+  onEnd,
+}) => {
+  const isVideoCall = callType === 'video';
+
+  useEffect(() => {
+    const element = remoteVideoRef?.current;
+    if (!element) return;
+
+    element.srcObject = remoteStream || null;
+    if (remoteStream) {
+      element.play?.().catch(() => {});
+    }
+  }, [remoteStream, remoteVideoRef]);
+
+  useEffect(() => {
+    const element = localVideoRef?.current;
+    if (!element) return;
+
+    element.srcObject = localStream || null;
+    if (localStream) {
+      element.play?.().catch(() => {});
+    }
+  }, [localStream, localVideoRef]);
+
+  return (
+    <div className="fixed bottom-5 right-5 z-50 w-[min(92vw,320px)] overflow-hidden rounded-[22px] border border-white/12 bg-[#10111b]/96 text-white shadow-[0_24px_70px_rgba(0,0,0,0.52)] backdrop-blur-xl">
+      <button type="button" onClick={onRestore} className="block w-full text-left">
+        <div className="relative h-36 bg-[#05050a]">
+          {isVideoCall ? (
+            <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+          ) : (
+            <audio ref={remoteVideoRef} autoPlay playsInline />
+          )}
+          <video ref={localVideoRef} autoPlay playsInline muted className="hidden" />
+          {!isVideoCall ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(106,255,232,0.16),transparent_36%),linear-gradient(180deg,#10111b,#07070d)]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-2xl font-bold">
+                {(participantName || 'Call').slice(0, 1).toUpperCase()}
+              </div>
+            </div>
+          ) : null}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/78 to-transparent p-3">
+            <div className="truncate text-sm font-semibold">{participantName || 'Contact'}</div>
+            <div className="mt-1 text-xs text-white/62">
+              {durationLabel || statusCopy[callStatus] || 'Call active'}
+            </div>
+          </div>
+        </div>
+      </button>
+      <div className="grid grid-cols-2 gap-2 p-3">
+        <button
+          type="button"
+          onClick={onRestore}
+          className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white/72 transition hover:bg-white/[0.08] hover:text-white"
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          onClick={onEnd}
+          className="rounded-2xl border border-[#ff8ca8]/24 bg-[#ff8ca8]/10 px-3 py-2 text-sm font-semibold text-[#ffd1df] transition hover:bg-[#ff8ca8]/16 hover:text-white"
+        >
+          End
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const CallModal = ({
   callType,
   callStatus,
@@ -29,13 +116,17 @@ const CallModal = ({
   remoteVideoRef,
   durationLabel,
   isScreenSharing = false,
+  audioOutputMode = 'default',
+  supportsAudioOutputSelection = false,
   isIncoming = false,
   onAnswer,
   onDecline,
   onEnd,
   onClose,
+  onMinimize,
   onStartScreenShare,
   onStopScreenShare,
+  onToggleSpeaker,
 }) => {
   const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const isVideoCall = callType === 'video';
@@ -48,6 +139,7 @@ const CallModal = ({
   const showEndAction = !showAnswerActions;
   const showScreenShareAction =
     isVideoCall && supportsScreenShare && callStatus === 'in-call' && !showAnswerActions;
+  const showSpeakerAction = !isVideoCall && callStatus === 'in-call' && !showAnswerActions;
 
   useEffect(() => {
     const element = localVideoRef?.current;
@@ -88,18 +180,36 @@ const CallModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-md">
       <div className="relative w-full max-w-4xl overflow-hidden rounded-[30px] border border-white/10 bg-[#090911] shadow-[0_40px_120px_rgba(0,0,0,0.6)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 z-20 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-white/60 transition hover:bg-black/55 hover:text-white"
-        >
-          Close
-        </button>
+        <div className="absolute right-4 top-4 z-20 flex gap-2">
+          {!showAnswerActions ? (
+            <button
+              type="button"
+              onClick={onMinimize}
+              className="rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-white/60 transition hover:bg-black/55 hover:text-white"
+            >
+              Minimize
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-white/60 transition hover:bg-black/55 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
 
         <div className="grid min-h-[520px] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="relative min-h-[360px] overflow-hidden bg-[#040408]">
             {isVideoCall ? (
-              <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+              <video 
+                ref={remoteVideoRef} 
+                autoPlay 
+                playsInline
+                muted={false}
+                className="h-full w-full object-cover" 
+                style={{ display: remoteStream ? 'block' : 'none' }}
+              />
             ) : (
               <audio ref={remoteVideoRef} autoPlay playsInline />
             )}
@@ -153,6 +263,11 @@ const CallModal = ({
                       Sharing screen
                     </span>
                   ) : null}
+                  {showSpeakerAction && audioOutputMode === 'speaker' ? (
+                    <span className="rounded-full border border-[#6affe8]/18 bg-[#6affe8]/10 px-3 py-1 text-sm font-semibold text-[#aef9ff]">
+                      Speaker
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -163,6 +278,7 @@ const CallModal = ({
                   playsInline
                   muted
                   className={`object-cover ${isVideoCall ? 'h-28 w-40' : 'h-20 w-32'}`}
+                  style={{ display: localStream && isVideoCall ? 'block' : 'none' }}
                 />
               </div>
             </div>
@@ -230,6 +346,22 @@ const CallModal = ({
                     >
                       <ScreenShareIcon />
                       {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+                    </button>
+                  ) : null}
+                  {showSpeakerAction ? (
+                    <button
+                      type="button"
+                      onClick={onToggleSpeaker}
+                      aria-pressed={audioOutputMode === 'speaker'}
+                      title={supportsAudioOutputSelection ? 'Toggle speaker' : 'Use your phone audio controls if this browser does not allow speaker selection'}
+                      className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                        audioOutputMode === 'speaker'
+                          ? 'border-[#6affe8]/28 bg-[#6affe8]/14 text-[#aef9ff] hover:bg-[#6affe8]/20 hover:text-white'
+                          : 'border-white/12 bg-white/[0.04] text-white/72 hover:bg-white/[0.08] hover:text-white'
+                      }`}
+                    >
+                      <SpeakerIcon />
+                      Speaker
                     </button>
                   ) : null}
                   <button

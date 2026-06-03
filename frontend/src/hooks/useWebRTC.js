@@ -20,20 +20,64 @@ const getIceServers = () => {
   return { iceServers: servers };
 };
 
-const getMediaConstraints = (callType = 'video') => ({
-  video: callType === 'video',
-  audio: true,
+const getMediaConstraints = (callType = 'video', videoMode = 'ideal') => ({
+  video: callType === 'video'
+    ? videoMode === 'basic'
+      ? true
+      : {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        }
+    : false,
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  },
 });
+
 const getMediaStream = async (callType) => {
   if (!window.isSecureContext) {
-    throw new Error('Camera and microphone need HTTPS, or open the app on localhost.');
+    throw new Error('Camera and microphone need HTTPS on phones. Open the app with HTTPS, or use localhost on the same device.');
   }
 
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Camera and microphone are not available in this browser.');
   }
 
-  return navigator.mediaDevices.getUserMedia(getMediaConstraints(callType));
+  try {
+    return await navigator.mediaDevices.getUserMedia(getMediaConstraints(callType));
+  } catch (error) {
+    console.error('Media stream error:', error.name, error.message);
+    
+    // If video call fails, try with basic constraints
+    if (callType === 'video') {
+      try {
+        console.log('Retrying with basic video constraints...');
+        return await navigator.mediaDevices.getUserMedia(getMediaConstraints(callType, 'basic'));
+      } catch (basicError) {
+        console.error('Basic video constraints also failed:', basicError.name);
+        
+        // Last resort: try audio only
+        try {
+          console.log('Falling back to audio only...');
+          return await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        } catch (audioError) {
+          throw new Error(`Could not start video source: ${error.message}. Make sure camera permissions are granted and camera is not in use by another app.`);
+        }
+      }
+    }
+
+    throw new Error(`Could not access microphone: ${error.message}`);
+  }
 };
 
 export const useWebRTC = (socket, userId) => {
@@ -42,6 +86,8 @@ export const useWebRTC = (socket, userId) => {
   const [callStatus, setCallStatus] = useState('idle');
   const [caller, setCaller] = useState(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [audioOutputMode, setAudioOutputModeState] = useState('default');
+  const [supportsAudioOutputSelection, setSupportsAudioOutputSelection] = useState(false);
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
@@ -70,13 +116,39 @@ export const useWebRTC = (socket, userId) => {
     }
   }, []);
 
+  const setAudioOutputMode = useCallback(async (nextMode) => {
+    const element = remoteVideoRef.current;
+
+    if (!element?.setSinkId) {
+      throw new Error('Speaker selection is not supported in this browser. Use your phone call/audio controls instead.');
+    }
+
+    const devices = navigator.mediaDevices?.enumerateDevices
+      ? await navigator.mediaDevices.enumerateDevices().catch(() => [])
+      : [];
+    const audioOutputs = devices.filter((device) => device.kind === 'audiooutput');
+    const speakerDevice = audioOutputs.find((device) =>
+      /speaker|default/i.test(`${device.label} ${device.deviceId}`)
+    );
+    const earpieceDevice = audioOutputs.find((device) =>
+      /earpiece|communications/i.test(`${device.label} ${device.deviceId}`)
+    );
+    const nextSinkId =
+      nextMode === 'speaker'
+        ? speakerDevice?.deviceId || 'default'
+        : earpieceDevice?.deviceId || 'default';
+
+    await element.setSinkId(nextSinkId);
+    setAudioOutputModeState(nextMode);
+  }, []);
+
   const markCallConnected = useCallback(() => {
     setCallStatus((previous) =>
       previous === 'idle' || previous === 'ended' ? previous : 'in-call'
     );
   }, []);
 
-  const cleanupPeerConnection = useCallback(() => {
+  const cleanupPeerConnection = useCallback(({ clearPendingCandidates = true } = {}) => {
     if (peerRef.current) {
       peerRef.current.ontrack = null;
       peerRef.current.onicecandidate = null;
@@ -86,7 +158,9 @@ export const useWebRTC = (socket, userId) => {
       peerRef.current = null;
     }
 
-    pendingCandidatesRef.current = [];
+    if (clearPendingCandidates) {
+      pendingCandidatesRef.current = [];
+    }
   }, []);
 
   const stopLocalTracks = useCallback(() => {
@@ -125,8 +199,8 @@ export const useWebRTC = (socket, userId) => {
     );
   }, []);
 
-  const createPeerConnection = useCallback((targetUserId) => {
-    cleanupPeerConnection();
+  const createPeerConnection = useCallback((targetUserId, { preservePendingCandidates = false } = {}) => {
+    cleanupPeerConnection({ clearPendingCandidates: !preservePendingCandidates });
 
     console.log('Creating RTCPeerConnection for', targetUserId);
     const peerConnection = new RTCPeerConnection(getIceServers());
@@ -215,6 +289,13 @@ export const useWebRTC = (socket, userId) => {
   }, [remoteStream]);
 
   useEffect(() => {
+    setSupportsAudioOutputSelection(
+      typeof HTMLMediaElement !== 'undefined'
+        && Boolean(HTMLMediaElement.prototype.setSinkId)
+    );
+  }, []);
+
+  useEffect(() => {
     if (!socket) return undefined;
 
     const handleCallAccepted = async (payload) => {
@@ -300,8 +381,15 @@ export const useWebRTC = (socket, userId) => {
       const stream = await getMediaStream(callType);
       syncLocalStream(stream);
 
-      const peerConnection = createPeerConnection(callerId);
+      const peerConnection = createPeerConnection(callerId, { preservePendingCandidates: true });
       peerConnection.__chatId = metadata.chatId;
+      if (Array.isArray(metadata.initialCandidates)) {
+        pendingCandidatesRef.current.push(
+          ...metadata.initialCandidates
+            .filter(Boolean)
+            .map((candidate) => new RTCIceCandidate(candidate))
+        );
+      }
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
       await flushPendingCandidates();
 
@@ -368,7 +456,7 @@ export const useWebRTC = (socket, userId) => {
     }
 
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      throw new Error('Screen sharing is not available in this browser.');
+      throw new Error('Screen sharing is not available in this browser. Most phone browsers do not allow websites to share the screen.');
     }
 
     const sender = peerRef.current.getSenders().find((entry) => entry.track?.kind === 'video');
@@ -403,6 +491,8 @@ export const useWebRTC = (socket, userId) => {
     callStatus,
     caller,
     isScreenSharing,
+    audioOutputMode,
+    supportsAudioOutputSelection,
     localVideoRef,
     remoteVideoRef,
     startCall,
@@ -411,6 +501,7 @@ export const useWebRTC = (socket, userId) => {
     endCall,
     startScreenShare,
     stopScreenShare,
+    setAudioOutputMode,
     resetCallState,
     setCallStatus,
     setCaller,

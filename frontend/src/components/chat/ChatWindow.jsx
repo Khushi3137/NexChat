@@ -16,7 +16,7 @@ import { formatCallDuration, getCallDirectionLabel, getCallStatusText, getCallTy
 import { formatMessageTime } from '../../utils/dateUtils';
 import { getChatAvatar, getChatName } from '../../utils/helpers';
 import Avatar from '../shared/Avatar';
-import CallModal from '../calls/CallModal';
+import CallModal, { MinimizedCallWidget } from '../calls/CallModal';
 import GroupCallModal from '../calls/GroupCallModal';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
@@ -453,6 +453,7 @@ const ChatWindow = ({ chat }) => {
   const [selectedForwardChatIds, setSelectedForwardChatIds] = useState([]);
   const [isForwarding, setIsForwarding] = useState(false);
   const [showCall, setShowCall] = useState(false);
+  const [isCallMinimized, setIsCallMinimized] = useState(false);
   const [callType, setCallType] = useState('video');
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const [showGroupCall, setShowGroupCall] = useState(false);
@@ -515,8 +516,11 @@ const ChatWindow = ({ chat }) => {
     resetCallState,
     callStatus,
     isScreenSharing,
+    audioOutputMode,
+    supportsAudioOutputSelection,
     localVideoRef,
     remoteVideoRef,
+    setAudioOutputMode,
     setCallStatus,
     setCaller,
   } = useWebRTC(socket, user._id);
@@ -700,6 +704,7 @@ const ChatWindow = ({ chat }) => {
     const activeSession = callSessionRef.current;
     if (!activeSession) {
       setShowCall(false);
+      setIsCallMinimized(false);
       setCallDurationSeconds(0);
       resetCallState();
       return;
@@ -715,6 +720,7 @@ const ChatWindow = ({ chat }) => {
     setCallDurationSeconds(0);
     callSessionRef.current = null;
     setShowCall(false);
+    setIsCallMinimized(false);
 
     if (emitAction === 'decline' && remoteUserId) {
       declineCall(remoteUserId, {
@@ -1066,15 +1072,18 @@ const ChatWindow = ({ chat }) => {
     const activeSession = callSessionRef.current;
     if (!activeSession) return;
 
-    if (callStatus === 'connecting') {
+    // CRITICAL: Clear timeout immediately when call transitions to in-call
+    if (callStatus === 'in-call') {
       clearPendingCallTimeout();
+      if (!activeSession.answeredAt) {
+        activeSession.answeredAt = new Date().toISOString();
+        startCallDurationTimer(activeSession.answeredAt);
+      }
       return;
     }
 
-    if (callStatus === 'in-call' && !activeSession.answeredAt) {
-      activeSession.answeredAt = new Date().toISOString();
+    if (callStatus === 'connecting') {
       clearPendingCallTimeout();
-      startCallDurationTimer(activeSession.answeredAt);
       return;
     }
 
@@ -1121,7 +1130,8 @@ const ChatWindow = ({ chat }) => {
     ].filter(Boolean);
     activeSession.joinedParticipantIds = [...new Set(joinedParticipantIds)];
 
-    if (groupRemoteParticipants.length && !activeSession.answeredAt) {
+    // CRITICAL: Clear timeout immediately when call transitions to in-call or has participants
+    if ((groupCallStatus === 'in-call' || groupRemoteParticipants.length) && !activeSession.answeredAt) {
       activeSession.answeredAt = new Date().toISOString();
       clearPendingGroupCallTimeout();
       startGroupCallDurationTimer(activeSession.answeredAt);
@@ -1464,6 +1474,7 @@ const ChatWindow = ({ chat }) => {
           callType: nextCallType,
           chatId: callChatId,
           receivedAt,
+          candidates: [],
         });
         playNotificationSound();
 
@@ -1516,11 +1527,12 @@ const ChatWindow = ({ chat }) => {
         startedAt: new Date().toISOString(),
         answeredAt: null,
       };
-      setCaller({ id: from, signal, callType: nextCallType, chatId: callChatId });
+      setCaller({ id: from, signal, callType: nextCallType, chatId: callChatId, candidates: [] });
       setCallType(nextCallType);
       setCallDurationSeconds(0);
       setCallStatus('incoming');
       setShowCall(true);
+      setIsCallMinimized(false);
       playNotificationSound();
       clearPendingCallTimeout();
       callTimeoutRef.current = window.setTimeout(() => {
@@ -1617,11 +1629,13 @@ const ChatWindow = ({ chat }) => {
       signal: pendingIncomingCall.signal,
       callType: pendingIncomingCall.callType,
       chatId: pendingIncomingCall.chatId,
+      candidates: pendingIncomingCall.candidates || [],
     });
     setCallType(pendingIncomingCall.callType);
     setCallDurationSeconds(0);
     setCallStatus('incoming');
     setShowCall(true);
+    setIsCallMinimized(false);
     clearPendingCallTimeout();
     callTimeoutRef.current = window.setTimeout(() => {
       void completeCallSession('missed', {
@@ -2062,6 +2076,7 @@ const ChatWindow = ({ chat }) => {
     setCallType(nextCallType);
     setCallDurationSeconds(0);
     setShowCall(true);
+    setIsCallMinimized(false);
 
     try {
       await startCall(otherUserId, nextCallType, { chatId: chat._id });
@@ -2076,6 +2091,7 @@ const ChatWindow = ({ chat }) => {
     } catch (error) {
       callSessionRef.current = null;
       setShowCall(false);
+      setIsCallMinimized(false);
       setCallDurationSeconds(0);
       resetCallState();
       toast.error(error?.message || `Could not start the ${nextCallType === 'video' ? 'video' : 'voice'} call`);
@@ -2086,7 +2102,10 @@ const ChatWindow = ({ chat }) => {
     if (!caller?.id || !caller?.signal) return;
 
     try {
-      await answerCall(caller.signal, caller.id, callType, { chatId: caller.chatId || chat._id });
+      await answerCall(caller.signal, caller.id, callType, {
+        chatId: caller.chatId || chat._id,
+        initialCandidates: caller.candidates || [],
+      });
     } catch (error) {
       void completeCallSession('missed', {
         emitAction: 'decline',
@@ -2132,6 +2151,15 @@ const ChatWindow = ({ chat }) => {
     handleEndActiveCall();
   };
 
+  const handleMinimizeCall = () => {
+    if (callStatus === 'incoming') return;
+    setIsCallMinimized(true);
+  };
+
+  const handleRestoreCall = () => {
+    setIsCallMinimized(false);
+  };
+
   const handleStartScreenShare = async () => {
     try {
       await startScreenShare();
@@ -2147,6 +2175,15 @@ const ChatWindow = ({ chat }) => {
       toast.success('Screen sharing stopped');
     } catch (error) {
       toast.error(error?.message || 'Could not stop screen sharing');
+    }
+  };
+
+  const handleToggleSpeaker = async () => {
+    try {
+      await setAudioOutputMode(audioOutputMode === 'speaker' ? 'default' : 'speaker');
+      toast.success(audioOutputMode === 'speaker' ? 'Speaker off' : 'Speaker on');
+    } catch (error) {
+      toast.error(error?.message || 'Speaker selection is not available in this browser');
     }
   };
 
@@ -3896,7 +3933,7 @@ const ChatWindow = ({ chat }) => {
         </div>
       ) : null}
 
-      {showCall ? (
+      {showCall && !isCallMinimized ? (
         <CallModal
           callType={callType}
           callStatus={callStatus}
@@ -3908,12 +3945,31 @@ const ChatWindow = ({ chat }) => {
           durationLabel={callDurationLabel}
           isIncoming={callStatus === 'incoming'}
           isScreenSharing={isScreenSharing}
+          audioOutputMode={audioOutputMode}
+          supportsAudioOutputSelection={supportsAudioOutputSelection}
           onAnswer={handleAnswerIncomingCall}
           onDecline={handleDeclineIncomingCall}
           onEnd={handleEndActiveCall}
           onClose={handleCloseCallModal}
+          onMinimize={handleMinimizeCall}
           onStartScreenShare={handleStartScreenShare}
           onStopScreenShare={handleStopScreenShare}
+          onToggleSpeaker={handleToggleSpeaker}
+        />
+      ) : null}
+
+      {showCall && isCallMinimized ? (
+        <MinimizedCallWidget
+          callType={callType}
+          callStatus={callStatus}
+          participantName={chatName}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          localVideoRef={localVideoRef}
+          remoteVideoRef={remoteVideoRef}
+          durationLabel={callDurationLabel}
+          onRestore={handleRestoreCall}
+          onEnd={handleEndActiveCall}
         />
       ) : null}
 

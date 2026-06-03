@@ -36,7 +36,7 @@ const AuthShell = ({
   children,
 }) => {
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#07070d] text-[#f0eeff]">
+    <div className="relative h-screen overflow-x-hidden overflow-y-auto bg-[#07070d] text-[#f0eeff]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_26%_20%,rgba(124,106,255,0.16),transparent_60%),radial-gradient(ellipse_50%_45%_at_86%_18%,rgba(255,106,176,0.12),transparent_56%),linear-gradient(145deg,#07070d_0%,#10111d_52%,#08090f_100%)]" />
 
       <header className="relative z-10 flex items-center justify-between gap-4 px-5 py-4 md:px-10">

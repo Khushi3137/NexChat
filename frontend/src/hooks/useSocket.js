@@ -12,7 +12,7 @@ export const useSocketEvents = () => {
   const { socket } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
-  const { playNotificationSound } = useNotification();
+  const { notify, playNotificationSound } = useNotification();
   const { addMessage, updateMessageStatus, setTyping, setPendingIncomingCall } = useChat();
 
   useEffect(() => {
@@ -48,8 +48,13 @@ export const useSocketEvents = () => {
         callType,
         chatId: callChatId,
         receivedAt,
+        candidates: [],
       });
       playNotificationSound();
+      notify(
+        `Incoming ${callType === 'video' ? 'video' : 'voice'} call`,
+        'Open NexChat to answer the call.'
+      );
 
       toast.custom(
         (toastInstance) => (
@@ -91,11 +96,27 @@ export const useSocketEvents = () => {
       }, CALL_RESPONSE_TIMEOUT_MS);
     };
 
+    const iceCandidateHandler = ({ candidate, from, chatId }) => {
+      if (!candidate || !from) return;
+
+      setPendingIncomingCall((previous) => {
+        if (!previous) return previous;
+        if (normalizeId(previous.from) !== normalizeId(from)) return previous;
+        if (chatId && normalizeId(previous.chatId) !== normalizeId(chatId)) return previous;
+
+        return {
+          ...previous,
+          candidates: [...(previous.candidates || []), candidate],
+        };
+      });
+    };
+
     socket.on('receiveMessage', receiveMessageHandler);
     socket.on('messageStatusUpdate', messageStatusHandler);
     socket.on('userTyping', userTypingHandler);
     socket.on('userStopTyping', userStopTypingHandler);
     socket.on('incomingCall', incomingCallHandler);
+    socket.on('iceCandidate', iceCandidateHandler);
 
     return () => {
       socket.off('receiveMessage', receiveMessageHandler);
@@ -103,6 +124,7 @@ export const useSocketEvents = () => {
       socket.off('userTyping', userTypingHandler);
       socket.off('userStopTyping', userStopTypingHandler);
       socket.off('incomingCall', incomingCallHandler);
+      socket.off('iceCandidate', iceCandidateHandler);
     };
-  }, [addMessage, location.pathname, navigate, playNotificationSound, setPendingIncomingCall, setTyping, socket, updateMessageStatus]);
+  }, [addMessage, location.pathname, navigate, notify, playNotificationSound, setPendingIncomingCall, setTyping, socket, updateMessageStatus]);
 };
