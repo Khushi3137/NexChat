@@ -30,11 +30,19 @@ export const useGroupCall = (socket, userId) => {
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [callStatus, setCallStatus] = useState('idle');
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const localStreamRef = useRef(null);
+  const screenStreamRef = useRef(null);
   const localVideoRef = useRef(null);
   const peersRef = useRef(new Map());
   const remoteStreamsRef = useRef(new Map());
   const pendingCandidatesRef = useRef(new Map());
+
+  const syncLocalPreview = useCallback((stream) => {
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream || null;
+    }
+  }, []);
 
   const syncRemoteParticipants = useCallback(() => {
     setRemoteParticipants(
@@ -48,10 +56,13 @@ export const useGroupCall = (socket, userId) => {
   const syncLocalStream = useCallback((stream) => {
     localStreamRef.current = stream;
     setLocalStream(stream);
+    syncLocalPreview(screenStreamRef.current || stream);
+  }, [syncLocalPreview]);
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream || null;
-    }
+  const markGroupCallConnected = useCallback(() => {
+    setCallStatus((previous) =>
+      previous === 'idle' || previous === 'ended' ? previous : 'in-call'
+    );
   }, []);
 
   const removeRemoteParticipant = useCallback((participantId) => {
@@ -74,6 +85,7 @@ export const useGroupCall = (socket, userId) => {
       peerConnection.ontrack = null;
       peerConnection.onicecandidate = null;
       peerConnection.onconnectionstatechange = null;
+      peerConnection.oniceconnectionstatechange = null;
       peerConnection.close();
       peersRef.current.delete(normalizedParticipantId);
     }
@@ -97,22 +109,33 @@ export const useGroupCall = (socket, userId) => {
     syncLocalStream(null);
   }, [syncLocalStream]);
 
+  const stopScreenTracks = useCallback(() => {
+    screenStreamRef.current?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    screenStreamRef.current = null;
+    setIsScreenSharing(false);
+  }, []);
+
   const resetGroupCallState = useCallback(() => {
     closeAllPeerConnections();
+    stopScreenTracks();
     stopLocalTracks();
     setIncomingCall(null);
     setActiveCall(null);
     setCallStatus('idle');
-  }, [closeAllPeerConnections, stopLocalTracks]);
+  }, [closeAllPeerConnections, stopLocalTracks, stopScreenTracks]);
 
   const prepareLocalStream = useCallback(async (callType) => {
     closeAllPeerConnections();
+    stopScreenTracks();
     stopLocalTracks();
 
     const stream = await getMediaStream(callType);
     syncLocalStream(stream);
     return stream;
-  }, [closeAllPeerConnections, stopLocalTracks, syncLocalStream]);
+  }, [closeAllPeerConnections, stopLocalTracks, stopScreenTracks, syncLocalStream]);
 
   const flushPendingCandidates = useCallback(async (participantId) => {
     const normalizedParticipantId = normalizeId(participantId);
@@ -142,12 +165,19 @@ export const useGroupCall = (socket, userId) => {
       localStreamRef.current.getTracks().forEach((track) => {
         peerConnection.addTrack(track, localStreamRef.current);
       });
+
+      const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+      if (screenTrack) {
+        const videoSender = peerConnection.getSenders().find((sender) => sender.track?.kind === 'video');
+        videoSender?.replaceTrack(screenTrack).catch(() => {});
+      }
     }
 
     peerConnection.ontrack = (event) => {
       const [stream] = event.streams;
       if (!stream) return;
       syncRemoteParticipant(normalizedParticipantId, stream);
+      markGroupCallConnected();
     };
 
     peerConnection.onicecandidate = (event) => {
@@ -164,7 +194,7 @@ export const useGroupCall = (socket, userId) => {
       const { connectionState } = peerConnection;
 
       if (connectionState === 'connected') {
-        setCallStatus('in-call');
+        markGroupCallConnected();
         return;
       }
 
@@ -182,14 +212,38 @@ export const useGroupCall = (socket, userId) => {
       }
     };
 
+    peerConnection.oniceconnectionstatechange = () => {
+      const { iceConnectionState } = peerConnection;
+
+      if (iceConnectionState === 'connected' || iceConnectionState === 'completed') {
+        markGroupCallConnected();
+        return;
+      }
+
+      if (iceConnectionState === 'checking') {
+        setCallStatus((previous) =>
+          previous === 'in-call' || previous === 'idle' || previous === 'ended'
+            ? previous
+            : 'connecting'
+        );
+        return;
+      }
+
+      if (['failed', 'closed'].includes(iceConnectionState)) {
+        closePeerConnection(normalizedParticipantId);
+        setCallStatus((previous) => {
+          if (!activeCall) return previous;
+          return remoteStreamsRef.current.size ? previous : 'connecting';
+        });
+      }
+    };
+
     return peerConnection;
-  }, [activeCall, closePeerConnection, socket, syncRemoteParticipant]);
+  }, [activeCall, closePeerConnection, markGroupCallConnected, socket, syncRemoteParticipant]);
 
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream || null;
-    }
-  }, [localStream]);
+    syncLocalPreview(screenStreamRef.current || localStream);
+  }, [localStream, syncLocalPreview]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -390,6 +444,69 @@ export const useGroupCall = (socket, userId) => {
     resetGroupCallState();
   }, [resetGroupCallState, socket]);
 
+  const replaceVideoTrackForPeers = useCallback(async (videoTrack) => {
+    const replacements = [...peersRef.current.values()].map((peerConnection) => {
+      const sender = peerConnection.getSenders().find((entry) => entry.track?.kind === 'video');
+      return sender?.replaceTrack(videoTrack);
+    });
+
+    await Promise.all(replacements.filter(Boolean));
+  }, []);
+
+  const stopScreenShare = useCallback(async () => {
+    if (!screenStreamRef.current) return;
+
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+    if (cameraTrack) {
+      await replaceVideoTrackForPeers(cameraTrack);
+    }
+
+    stopScreenTracks();
+    syncLocalPreview(localStreamRef.current);
+  }, [replaceVideoTrackForPeers, stopScreenTracks, syncLocalPreview]);
+
+  const startScreenShare = useCallback(async () => {
+    if (!localStreamRef.current?.getVideoTracks().length) {
+      throw new Error('Start a video group call before sharing your screen.');
+    }
+
+    if (!window.isSecureContext) {
+      throw new Error('Screen sharing needs HTTPS, or open the app on localhost.');
+    }
+
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      throw new Error('Screen sharing is not available in this browser.');
+    }
+
+    const hasMissingVideoSender = [...peersRef.current.values()].some((peerConnection) =>
+      !peerConnection.getSenders().some((entry) => entry.track?.kind === 'video')
+    );
+
+    if (hasMissingVideoSender) {
+      throw new Error('Screen sharing is available after starting a video group call.');
+    }
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new Error('No screen video track was selected.');
+    }
+
+    if (screenStreamRef.current) {
+      stopScreenTracks();
+    }
+
+    await replaceVideoTrackForPeers(videoTrack);
+    screenStreamRef.current = stream;
+    setIsScreenSharing(true);
+    syncLocalPreview(stream);
+
+    videoTrack.onended = () => {
+      void stopScreenShare();
+    };
+  }, [replaceVideoTrackForPeers, stopScreenShare, stopScreenTracks, syncLocalPreview]);
+
   return {
     localStream,
     localVideoRef,
@@ -397,11 +514,14 @@ export const useGroupCall = (socket, userId) => {
     incomingCall,
     activeCall,
     callStatus,
+    isScreenSharing,
     startGroupCall,
     answerGroupCall,
     declineGroupCall,
     leaveGroupCall,
     endGroupCall,
+    startScreenShare,
+    stopScreenShare,
     resetGroupCallState,
     setCallStatus,
   };

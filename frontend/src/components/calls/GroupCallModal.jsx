@@ -11,6 +11,16 @@ const statusCopy = {
   idle: 'Ready',
 };
 
+const ScreenShareIcon = ({ className = 'h-4 w-4' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+    <rect x="3" y="4" width="18" height="13" rx="2" />
+    <path d="M8 21h8" strokeLinecap="round" />
+    <path d="M12 17v4" strokeLinecap="round" />
+    <path d="M9 10l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 7v7" strokeLinecap="round" />
+  </svg>
+);
+
 const StreamTile = ({ stream, label, isVideoCall, isLocal = false }) => {
   const videoRef = useRef(null);
 
@@ -62,14 +72,18 @@ const GroupCallModal = ({
   durationLabel,
   isIncoming = false,
   isHost = false,
+  isScreenSharing = false,
   onAnswer,
   onDecline,
   onLeave,
   onEnd,
   onClose,
+  onStartScreenShare,
+  onStopScreenShare,
 }) => {
   const isVideoCall = callType === 'video';
   const showAnswerActions = isIncoming && callStatus === 'incoming';
+  const showScreenShareAction = isVideoCall && callStatus === 'in-call' && !showAnswerActions;
   const remoteCount = remoteParticipants.length;
   const allTiles = [
     ...remoteParticipants.map((participant) => ({
@@ -120,6 +134,11 @@ const GroupCallModal = ({
                 {durationLabel && callStatus === 'in-call' ? (
                   <span className="rounded-full border border-[#6affe8]/18 bg-[#6affe8]/10 px-3 py-1 text-sm font-semibold text-[#aef9ff]">
                     {durationLabel}
+                  </span>
+                ) : null}
+                {isScreenSharing ? (
+                  <span className="rounded-full border border-[#f9d66a]/20 bg-[#f9d66a]/10 px-3 py-1 text-sm font-semibold text-[#ffe9a6]">
+                    Sharing screen
                   </span>
                 ) : null}
               </div>
@@ -197,13 +216,30 @@ const GroupCallModal = ({
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={isHost ? onEnd : onLeave}
-                className="w-full rounded-2xl border border-[#ff8ca8]/24 bg-[#ff8ca8]/10 px-4 py-3 text-sm font-semibold text-[#ffd1df] transition hover:bg-[#ff8ca8]/16 hover:text-white"
-              >
-                {isHost ? 'End Call For Everyone' : 'Leave Call'}
-              </button>
+              <>
+                {showScreenShareAction ? (
+                  <button
+                    type="button"
+                    onClick={isScreenSharing ? onStopScreenShare : onStartScreenShare}
+                    aria-pressed={isScreenSharing}
+                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                      isScreenSharing
+                        ? 'border-[#f9d66a]/28 bg-[#f9d66a]/12 text-[#ffe9a6] hover:bg-[#f9d66a]/18 hover:text-white'
+                        : 'border-[#6affe8]/24 bg-[#6affe8]/10 text-[#aef9ff] hover:bg-[#6affe8]/16 hover:text-white'
+                    }`}
+                  >
+                    <ScreenShareIcon />
+                    {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={isHost ? onEnd : onLeave}
+                  className="flex-1 rounded-2xl border border-[#ff8ca8]/24 bg-[#ff8ca8]/10 px-4 py-3 text-sm font-semibold text-[#ffd1df] transition hover:bg-[#ff8ca8]/16 hover:text-white"
+                >
+                  {isHost ? 'End Call For Everyone' : 'Leave Call'}
+                </button>
+              </>
             )}
           </div>
         </div>

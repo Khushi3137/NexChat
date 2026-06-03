@@ -31,20 +31,26 @@ export const useWebRTC = (socket, userId) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState('idle');
   const [caller, setCaller] = useState(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
+  const screenStreamRef = useRef(null);
   const pendingCandidatesRef = useRef([]);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  const syncLocalStream = useCallback((stream) => {
-    localStreamRef.current = stream;
-    setLocalStream(stream);
+  const syncLocalPreview = useCallback((stream) => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream || null;
     }
   }, []);
+
+  const syncLocalStream = useCallback((stream) => {
+    localStreamRef.current = stream;
+    setLocalStream(stream);
+    syncLocalPreview(screenStreamRef.current || stream);
+  }, [syncLocalPreview]);
 
   const syncRemoteStream = useCallback((stream) => {
     remoteStreamRef.current = stream;
@@ -54,11 +60,18 @@ export const useWebRTC = (socket, userId) => {
     }
   }, []);
 
+  const markCallConnected = useCallback(() => {
+    setCallStatus((previous) =>
+      previous === 'idle' || previous === 'ended' ? previous : 'in-call'
+    );
+  }, []);
+
   const cleanupPeerConnection = useCallback(() => {
     if (peerRef.current) {
       peerRef.current.ontrack = null;
       peerRef.current.onicecandidate = null;
       peerRef.current.onconnectionstatechange = null;
+      peerRef.current.oniceconnectionstatechange = null;
       peerRef.current.close();
       peerRef.current = null;
     }
@@ -71,13 +84,23 @@ export const useWebRTC = (socket, userId) => {
     syncLocalStream(null);
   }, [syncLocalStream]);
 
+  const stopScreenTracks = useCallback(() => {
+    screenStreamRef.current?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    screenStreamRef.current = null;
+    setIsScreenSharing(false);
+  }, []);
+
   const resetCallState = useCallback(() => {
     cleanupPeerConnection();
+    stopScreenTracks();
     stopLocalTracks();
     syncRemoteStream(null);
     setCaller(null);
     setCallStatus('idle');
-  }, [cleanupPeerConnection, stopLocalTracks, syncRemoteStream]);
+  }, [cleanupPeerConnection, stopLocalTracks, stopScreenTracks, syncRemoteStream]);
 
   const flushPendingCandidates = useCallback(async () => {
     if (!peerRef.current?.remoteDescription?.type) return;
@@ -110,6 +133,7 @@ export const useWebRTC = (socket, userId) => {
       if (!stream) return;
       console.log('Received remote track for', targetUserId);
       syncRemoteStream(stream);
+      markCallConnected();
     };
 
     peerConnection.onicecandidate = (event) => {
@@ -127,7 +151,7 @@ export const useWebRTC = (socket, userId) => {
       console.log('Peer connection state:', state, 'for', targetUserId);
 
       if (state === 'connected') {
-        setCallStatus('in-call');
+        markCallConnected();
         return;
       }
 
@@ -143,14 +167,35 @@ export const useWebRTC = (socket, userId) => {
       }
     };
 
+    peerConnection.oniceconnectionstatechange = () => {
+      const state = peerConnection.iceConnectionState;
+      console.log('ICE connection state:', state, 'for', targetUserId);
+
+      if (state === 'connected' || state === 'completed') {
+        markCallConnected();
+        return;
+      }
+
+      if (state === 'checking') {
+        setCallStatus((previous) =>
+          previous === 'idle' || previous === 'ended' || previous === 'in-call'
+            ? previous
+            : 'connecting'
+        );
+        return;
+      }
+
+      if (['failed', 'closed'].includes(state)) {
+        setCallStatus((previous) => (previous === 'idle' ? previous : 'ended'));
+      }
+    };
+
     return peerConnection;
-  }, [cleanupPeerConnection, socket, syncRemoteStream]);
+  }, [cleanupPeerConnection, markCallConnected, socket, syncRemoteStream]);
 
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream || null;
-    }
-  }, [localStream]);
+    syncLocalPreview(screenStreamRef.current || localStream);
+  }, [localStream, syncLocalPreview]);
 
   useEffect(() => {
     if (remoteVideoRef.current) {
@@ -281,37 +326,65 @@ export const useWebRTC = (socket, userId) => {
     resetCallState();
   }, [resetCallState, socket]);
 
+  const stopScreenShare = useCallback(async () => {
+    if (!screenStreamRef.current) return;
+
+    const cameraTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+    const sender = peerRef.current?.getSenders().find((entry) => entry.track?.kind === 'video');
+
+    if (sender && cameraTrack) {
+      await sender.replaceTrack(cameraTrack);
+    }
+
+    stopScreenTracks();
+    syncLocalPreview(localStreamRef.current);
+  }, [stopScreenTracks, syncLocalPreview]);
+
   const startScreenShare = useCallback(async () => {
-    if (!peerRef.current) return;
+    if (!peerRef.current) {
+      throw new Error('Start a video call before sharing your screen.');
+    }
 
     if (!window.isSecureContext) {
       throw new Error('Screen sharing needs HTTPS, or open the app on localhost.');
     }
 
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      throw new Error('Screen sharing is not available in this browser.');
+    }
+
+    const sender = peerRef.current.getSenders().find((entry) => entry.track?.kind === 'video');
+    if (!sender) {
+      throw new Error('Screen sharing is available after starting a video call.');
+    }
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     const videoTrack = stream.getVideoTracks()[0];
-    const sender = peerRef.current.getSenders().find((entry) => entry.track?.kind === 'video');
-    sender?.replaceTrack(videoTrack);
+    if (!videoTrack) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new Error('No screen video track was selected.');
+    }
+
+    if (screenStreamRef.current) {
+      stopScreenTracks();
+    }
+
+    await sender.replaceTrack(videoTrack);
+    screenStreamRef.current = stream;
+    setIsScreenSharing(true);
+    syncLocalPreview(stream);
+
     videoTrack.onended = () => {
-      stopScreenShare().catch(() => {});
+      void stopScreenShare();
     };
-  }, []);
-
-  const stopScreenShare = useCallback(async () => {
-    if (!peerRef.current || !localStreamRef.current) return;
-
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    if (!videoTrack) return;
-
-    const sender = peerRef.current.getSenders().find((entry) => entry.track?.kind === 'video');
-    await sender?.replaceTrack(videoTrack);
-  }, []);
+  }, [stopScreenShare, stopScreenTracks, syncLocalPreview]);
 
   return {
     localStream,
     remoteStream,
     callStatus,
     caller,
+    isScreenSharing,
     localVideoRef,
     remoteVideoRef,
     startCall,

@@ -506,8 +506,11 @@ const ChatWindow = ({ chat }) => {
     answerCall,
     declineCall,
     endCall,
+    startScreenShare,
+    stopScreenShare,
     resetCallState,
     callStatus,
+    isScreenSharing,
     localVideoRef,
     remoteVideoRef,
     setCallStatus,
@@ -524,7 +527,10 @@ const ChatWindow = ({ chat }) => {
     declineGroupCall,
     leaveGroupCall,
     endGroupCall,
+    startScreenShare: startGroupScreenShare,
+    stopScreenShare: stopGroupScreenShare,
     resetGroupCallState,
+    isScreenSharing: isGroupScreenSharing,
   } = useGroupCall(socket, user._id);
 
   useEffect(() => {
@@ -1996,6 +2002,24 @@ const ChatWindow = ({ chat }) => {
     handleEndActiveCall();
   };
 
+  const handleStartScreenShare = async () => {
+    try {
+      await startScreenShare();
+      toast.success('Screen sharing started');
+    } catch (error) {
+      toast.error(error?.message || 'Could not start screen sharing');
+    }
+  };
+
+  const handleStopScreenShare = async () => {
+    try {
+      await stopScreenShare();
+      toast.success('Screen sharing stopped');
+    } catch (error) {
+      toast.error(error?.message || 'Could not stop screen sharing');
+    }
+  };
+
   const startVideoCall = () => {
     void handleStartDirectCall('video');
   };
@@ -2073,6 +2097,24 @@ const ChatWindow = ({ chat }) => {
     void completeGroupCallSession(activeSession.answeredAt ? 'completed' : 'missed', {
       emitAction: isHost ? 'end' : 'leave',
     });
+  };
+
+  const handleStartGroupScreenShare = async () => {
+    try {
+      await startGroupScreenShare();
+      toast.success('Screen sharing started');
+    } catch (error) {
+      toast.error(error?.message || 'Could not start screen sharing');
+    }
+  };
+
+  const handleStopGroupScreenShare = async () => {
+    try {
+      await stopGroupScreenShare();
+      toast.success('Screen sharing stopped');
+    } catch (error) {
+      toast.error(error?.message || 'Could not stop screen sharing');
+    }
   };
 
   const startGroupVideoCall = () => {
@@ -3733,10 +3775,13 @@ const ChatWindow = ({ chat }) => {
           remoteVideoRef={remoteVideoRef}
           durationLabel={callDurationLabel}
           isIncoming={callStatus === 'incoming'}
+          isScreenSharing={isScreenSharing}
           onAnswer={handleAnswerIncomingCall}
           onDecline={handleDeclineIncomingCall}
           onEnd={handleEndActiveCall}
           onClose={handleCloseCallModal}
+          onStartScreenShare={handleStartScreenShare}
+          onStopScreenShare={handleStopScreenShare}
         />
       ) : null}
 
@@ -3753,11 +3798,14 @@ const ChatWindow = ({ chat }) => {
           durationLabel={groupCallDurationLabel}
           isIncoming={groupCallStatus === 'incoming'}
           isHost={isGroupCallHost}
+          isScreenSharing={isGroupScreenSharing}
           onAnswer={handleAnswerGroupCall}
           onDecline={handleDeclineGroupCall}
           onLeave={handleLeaveGroupCall}
           onEnd={handleLeaveGroupCall}
           onClose={handleLeaveGroupCall}
+          onStartScreenShare={handleStartGroupScreenShare}
+          onStopScreenShare={handleStopGroupScreenShare}
         />
       ) : null}
 

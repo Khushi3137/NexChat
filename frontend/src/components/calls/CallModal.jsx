@@ -9,6 +9,16 @@ const statusCopy = {
   idle: 'Ready',
 };
 
+const ScreenShareIcon = ({ className = 'h-4 w-4' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+    <rect x="3" y="4" width="18" height="13" rx="2" />
+    <path d="M8 21h8" strokeLinecap="round" />
+    <path d="M12 17v4" strokeLinecap="round" />
+    <path d="M9 10l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 7v7" strokeLinecap="round" />
+  </svg>
+);
+
 const CallModal = ({
   callType,
   callStatus,
@@ -16,15 +26,19 @@ const CallModal = ({
   localVideoRef,
   remoteVideoRef,
   durationLabel,
+  isScreenSharing = false,
   isIncoming = false,
   onAnswer,
   onDecline,
   onEnd,
   onClose,
+  onStartScreenShare,
+  onStopScreenShare,
 }) => {
   const isVideoCall = callType === 'video';
   const showAnswerActions = isIncoming && callStatus === 'incoming';
   const showEndAction = !showAnswerActions;
+  const showScreenShareAction = isVideoCall && callStatus === 'in-call' && !showAnswerActions;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-4 backdrop-blur-md">
@@ -75,6 +89,11 @@ const CallModal = ({
                       {durationLabel}
                     </span>
                   ) : null}
+                  {isScreenSharing ? (
+                    <span className="rounded-full border border-[#f9d66a]/20 bg-[#f9d66a]/10 px-3 py-1 text-sm font-semibold text-[#ffe9a6]">
+                      Sharing screen
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -105,7 +124,7 @@ const CallModal = ({
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
                   <div className="text-xs text-white/42">Status</div>
                   <div className="mt-1 text-sm font-semibold text-white">
-                    {statusCopy[callStatus] || 'Call active'}
+                    {isScreenSharing ? 'Sharing screen' : statusCopy[callStatus] || 'Call active'}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
@@ -138,13 +157,30 @@ const CallModal = ({
               ) : null}
 
               {showEndAction ? (
-                <button
-                  type="button"
-                  onClick={onEnd}
-                  className="w-full rounded-2xl border border-[#ff8ca8]/24 bg-[#ff8ca8]/10 px-4 py-3 text-sm font-semibold text-[#ffd1df] transition hover:bg-[#ff8ca8]/16 hover:text-white"
-                >
-                  End Call
-                </button>
+                <>
+                  {showScreenShareAction ? (
+                    <button
+                      type="button"
+                      onClick={isScreenSharing ? onStopScreenShare : onStartScreenShare}
+                      aria-pressed={isScreenSharing}
+                      className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                        isScreenSharing
+                          ? 'border-[#f9d66a]/28 bg-[#f9d66a]/12 text-[#ffe9a6] hover:bg-[#f9d66a]/18 hover:text-white'
+                          : 'border-[#6affe8]/24 bg-[#6affe8]/10 text-[#aef9ff] hover:bg-[#6affe8]/16 hover:text-white'
+                      }`}
+                    >
+                      <ScreenShareIcon />
+                      {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={onEnd}
+                    className="flex-1 rounded-2xl border border-[#ff8ca8]/24 bg-[#ff8ca8]/10 px-4 py-3 text-sm font-semibold text-[#ffd1df] transition hover:bg-[#ff8ca8]/16 hover:text-white"
+                  >
+                    End Call
+                  </button>
+                </>
               ) : null}
             </div>
           </div>
