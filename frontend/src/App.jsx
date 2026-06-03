@@ -52,7 +52,6 @@ function App() {
     <AuthProvider>
       <SocketProvider>
         <ChatProvider>
-          <SocketEventListener />
           <Router>
             <Toaster
               position="top-right"
@@ -64,6 +63,7 @@ function App() {
                 },
               }}
             />
+            <SocketEventListener />
             <AppRoutes />
           </Router>
         </ChatProvider>
