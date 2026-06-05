@@ -1,23 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+const splitEnvList = (value = '') =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 const getIceServers = () => {
   const servers = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
+    {
+      urls: [
+        'stun:stun.l.google.com:19302',
+        'stun:stun1.l.google.com:19302',
+        'stun:stun2.l.google.com:19302',
+        'stun:stun3.l.google.com:19302',
+        'stun:stun4.l.google.com:19302',
+      ],
+    },
+  ];
+  const turnUrls = [
+    ...splitEnvList(process.env.REACT_APP_TURN_URLS),
+    ...splitEnvList(process.env.REACT_APP_TURN_URL),
   ];
 
-  if (process.env.REACT_APP_TURN_URL) {
+  if (turnUrls.length) {
     servers.push({
-      urls: process.env.REACT_APP_TURN_URL,
-      username: process.env.REACT_APP_TURN_USERNAME,
-      credential: process.env.REACT_APP_TURN_CREDENTIAL,
+      urls: turnUrls,
+      username: process.env.REACT_APP_TURN_USERNAME || undefined,
+      credential: process.env.REACT_APP_TURN_CREDENTIAL || undefined,
     });
   }
 
-  return { iceServers: servers };
+  return {
+    iceServers: servers,
+    iceCandidatePoolSize: 10,
+  };
 };
 
 const getMediaConstraints = (callType = 'video', videoMode = 'ideal') => ({
@@ -97,6 +114,7 @@ export const useWebRTC = (socket, userId) => {
   const pendingCandidatesRef = useRef([]);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const connectionFailureTimeoutRef = useRef(null);
 
   const syncLocalPreview = useCallback((stream) => {
     if (localVideoRef.current) {
@@ -177,6 +195,9 @@ export const useWebRTC = (socket, userId) => {
   }, []);
 
   const cleanupPeerConnection = useCallback(({ clearPendingCandidates = true } = {}) => {
+    window.clearTimeout(connectionFailureTimeoutRef.current);
+    connectionFailureTimeoutRef.current = null;
+
     if (peerRef.current) {
       peerRef.current.ontrack = null;
       peerRef.current.onicecandidate = null;
@@ -264,6 +285,8 @@ export const useWebRTC = (socket, userId) => {
       console.log('Peer connection state:', state, 'for', targetUserId);
 
       if (state === 'connected') {
+        window.clearTimeout(connectionFailureTimeoutRef.current);
+        connectionFailureTimeoutRef.current = null;
         markCallConnected();
         return;
       }
@@ -275,7 +298,15 @@ export const useWebRTC = (socket, userId) => {
         return;
       }
 
-      if (['failed', 'disconnected', 'closed'].includes(state)) {
+      if (state === 'disconnected') {
+        window.clearTimeout(connectionFailureTimeoutRef.current);
+        connectionFailureTimeoutRef.current = window.setTimeout(() => {
+          setCallStatus((previous) => (previous === 'idle' || previous === 'ended' ? previous : 'ended'));
+        }, 12000);
+        return;
+      }
+
+      if (['failed', 'closed'].includes(state)) {
         setCallStatus((previous) => (previous === 'idle' ? previous : 'ended'));
       }
     };
@@ -285,6 +316,8 @@ export const useWebRTC = (socket, userId) => {
       console.log('ICE connection state:', state, 'for', targetUserId);
 
       if (state === 'connected' || state === 'completed') {
+        window.clearTimeout(connectionFailureTimeoutRef.current);
+        connectionFailureTimeoutRef.current = null;
         markCallConnected();
         return;
       }
@@ -295,6 +328,14 @@ export const useWebRTC = (socket, userId) => {
             ? previous
             : 'connecting'
         );
+        return;
+      }
+
+      if (state === 'disconnected') {
+        window.clearTimeout(connectionFailureTimeoutRef.current);
+        connectionFailureTimeoutRef.current = window.setTimeout(() => {
+          setCallStatus((previous) => (previous === 'idle' || previous === 'ended' ? previous : 'ended'));
+        }, 12000);
         return;
       }
 

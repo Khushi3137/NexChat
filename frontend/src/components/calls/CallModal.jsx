@@ -36,7 +36,7 @@ const IconButton = ({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_12px_34px_rgba(0,0,0,0.28)] transition ${stateClass} disabled:cursor-not-allowed disabled:opacity-45 sm:h-14 sm:w-14`}
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border shadow-[0_12px_34px_rgba(0,0,0,0.28)] transition ${stateClass} disabled:cursor-not-allowed disabled:opacity-45 sm:h-14 sm:w-14`}
     >
       {children}
     </button>
@@ -66,6 +66,14 @@ const PhoneIcon = () => (
 const ScreenIcon = () => (
   <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 6h16v10H4zM9 20h6m-3-4v4" />
+  </svg>
+);
+
+const AddPeopleIcon = () => (
+  <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M16 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2" />
+    <circle cx="9.5" cy="7" r="4" strokeWidth={1.7} />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M19 8v6m3-3h-6" />
   </svg>
 );
 
@@ -211,6 +219,11 @@ const CallModal = ({
     onMinimize?.();
   };
 
+  const handleAddPeopleFromControls = () => {
+    setIsMoreMenuOpen(false);
+    onAddPeople?.();
+  };
+
   return (
     <div ref={modalRef} className="fixed inset-0 z-50 flex overflow-hidden bg-[#050507] text-white">
       <main className="relative min-w-0 flex-1 overflow-hidden bg-black">
@@ -293,8 +306,8 @@ const CallModal = ({
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center bg-gradient-to-t from-black/82 via-black/36 to-transparent px-4 pb-5 pt-16 sm:pb-7">
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/58 p-3 shadow-[0_16px_46px_rgba(0,0,0,0.42)] backdrop-blur-md sm:gap-4">
+        <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center overflow-x-auto bg-gradient-to-t from-black/82 via-black/36 to-transparent px-4 pb-5 pt-16 sm:pb-7">
+          <div className="flex min-w-max max-w-full flex-nowrap items-center gap-3 rounded-2xl border border-white/10 bg-black/58 p-3 shadow-[0_16px_46px_rgba(0,0,0,0.42)] backdrop-blur-md sm:gap-4">
             {showAnswerActions ? (
               <>
                 <IconButton title="Decline call" onClick={onDecline} danger>
@@ -328,13 +341,18 @@ const CallModal = ({
                     <SpeakerIcon active={audioOutputMode === 'speaker'} />
                   </IconButton>
                 ) : null}
-                {document.fullscreenEnabled ? (
-                  <div className="relative">
-                    <IconButton title="More options" onClick={() => setIsMoreMenuOpen((value) => !value)}>
-                      <MoreIcon />
-                    </IconButton>
-                    {isMoreMenuOpen ? (
-                      <div className="absolute bottom-full right-0 mb-3 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#111118]/96 p-2 text-sm shadow-[0_18px_46px_rgba(0,0,0,0.45)] backdrop-blur">
+                {isConnected && onAddPeople ? (
+                  <IconButton title="Add people" onClick={handleAddPeopleFromControls}>
+                    <AddPeopleIcon />
+                  </IconButton>
+                ) : null}
+                <div className="relative">
+                  <IconButton title="More options" onClick={() => setIsMoreMenuOpen((value) => !value)}>
+                    <MoreIcon />
+                  </IconButton>
+                  {isMoreMenuOpen ? (
+                    <div className="absolute bottom-full right-0 mb-3 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#111118]/96 p-2 text-sm shadow-[0_18px_46px_rgba(0,0,0,0.45)] backdrop-blur">
+                      {document.fullscreenEnabled ? (
                         <button
                           type="button"
                           onClick={handleToggleFullscreen}
@@ -342,19 +360,26 @@ const CallModal = ({
                         >
                           {isFullscreen ? 'Exit fullscreen' : 'Maximize'}
                         </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleMinimizeFromMenu}
-                  title="Minimize"
-                  aria-label="Minimize"
-                  className="flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.08] text-xs font-bold text-white/78 shadow-[0_12px_34px_rgba(0,0,0,0.28)] transition hover:bg-white/[0.14] hover:text-white sm:h-14 sm:w-14"
-                >
-                  Min
-                </button>
+                      ) : null}
+                      {isConnected && onAddPeople ? (
+                        <button
+                          type="button"
+                          onClick={handleAddPeopleFromControls}
+                          className="block w-full rounded-xl px-3 py-2 text-left font-semibold text-white/76 transition hover:bg-white/[0.08] hover:text-white"
+                        >
+                          Add people
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleMinimizeFromMenu}
+                        className="block w-full rounded-xl px-3 py-2 text-left font-semibold text-white/76 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        Minimize
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <IconButton title="End call" onClick={onEnd} danger>
                   <PhoneIcon />
                 </IconButton>
