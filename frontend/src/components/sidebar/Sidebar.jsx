@@ -385,8 +385,8 @@ const Sidebar = () => {
           </div>
         </div>
 
-        <div className="relative flex-1 min-h-0 overflow-hidden">
-          <div className="app-scrollbar h-full overflow-y-scroll px-[10px] pb-4 pt-2">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div className="app-scrollbar h-full overflow-y-auto overscroll-contain px-[10px] pb-4 pt-2">
 
             {searchResults.length ? (
               <section className="mx-[10px] mb-3 rounded-[16px] border border-white/8 bg-[#14141f] p-4">

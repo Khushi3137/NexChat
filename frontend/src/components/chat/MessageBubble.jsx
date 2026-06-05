@@ -111,6 +111,53 @@ const getMentionParts = (content, participants) => {
   return parts.filter((part) => part.text);
 };
 
+const getLinkParts = (content) => {
+  if (!content) {
+    return [{ text: content, isLink: false }];
+  }
+
+  const linkRegex = /(?:https?:\/\/|www\.)[^\s]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
+  const trailingPunctuationRegex = /[),.!?;:]+$/;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(content)) !== null) {
+    const rawUrl = match[0];
+    const trailingPunctuation = rawUrl.match(trailingPunctuationRegex)?.[0] || '';
+    const url = trailingPunctuation ? rawUrl.slice(0, -trailingPunctuation.length) : rawUrl;
+
+    if (!url) {
+      continue;
+    }
+
+    if (match.index > lastIndex) {
+      parts.push({ text: content.slice(lastIndex, match.index), isLink: false });
+    }
+
+    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    parts.push({ text: url, isLink: true, href });
+
+    if (trailingPunctuation) {
+      parts.push({ text: trailingPunctuation, isLink: false });
+    }
+
+    lastIndex = match.index + rawUrl.length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({ text: content.slice(lastIndex), isLink: false });
+  }
+
+  return parts;
+};
+
+const getMessageContentParts = (content, participants) => {
+  return getMentionParts(content, participants).flatMap((part) =>
+    part.isMention ? [part] : getLinkParts(part.text)
+  );
+};
+
 const MessageBubble = ({
   message,
   chat,
@@ -162,10 +209,10 @@ const MessageBubble = ({
   const replyPreviewText = message.replyTo?.isDeletedForEveryone
     ? 'This message was deleted'
     : message.replyTo?.content ||
-      (message.replyTo?.messageType === 'call' ? getCallStatusText(message.replyTo?.call, currentUserId) : '') ||
-      message.replyTo?.poll?.question ||
-      message.replyTo?.location?.address ||
-      'Shared media attachment';
+    (message.replyTo?.messageType === 'call' ? getCallStatusText(message.replyTo?.call, currentUserId) : '') ||
+    message.replyTo?.poll?.question ||
+    message.replyTo?.location?.address ||
+    'Shared media attachment';
   const locationHref =
     mediaType === 'location' && message.location
       ? `https://www.google.com/maps?q=${message.location.lat},${message.location.lng}`
@@ -173,7 +220,7 @@ const MessageBubble = ({
   const ownPollVote = message.poll?.options?.find((option) =>
     option.votes?.some((entry) => normalizeId(entry) === currentUserId)
   )?._id;
-  const messageContentParts = getMentionParts(message.content, chat?.participants);
+  const messageContentParts = getMessageContentParts(message.content, chat?.participants);
   const callWasStartedByCurrentUser = isCallInitiatedByUser(callDetails, currentUserId);
   const isGroupCallMessage = isGroupCall(callDetails);
   const callSummary = isCallMessage ? getCallStatusText(callDetails, currentUserId) : '';
@@ -335,11 +382,10 @@ const MessageBubble = ({
 
         <div
           ref={bubbleCardRef}
-          className={`relative rounded-[20px] border px-4 py-3 text-sm leading-6 ${
-            isOwn
+          className={`relative rounded-[20px] border px-4 py-3 text-sm leading-6 ${isOwn
               ? 'rounded-br-[8px] border-transparent bg-gradient-to-br from-[#6a52ff] to-[#7c6aff] text-white shadow-[0_4px_20px_rgba(124,106,255,0.35)]'
               : 'rounded-bl-[8px] border-white/8 bg-[#1a1a28] text-[#f0eeff]'
-          }`}
+            }`}
           onContextMenu={(event) => {
             event.preventDefault();
             setShowMenu((value) => !value);
@@ -347,16 +393,14 @@ const MessageBubble = ({
         >
           {message.replyTo ? (
             <div
-              className={`mb-3 rounded-xl border-l-[3px] px-3 py-2 text-xs ${
-                isOwn
+              className={`mb-3 rounded-xl border-l-[3px] px-3 py-2 text-xs ${isOwn
                   ? 'border-l-[#ff6ab0] bg-white/12 text-white/85'
                   : 'border-l-[#ff6ab0] bg-white/8 text-white/72'
-              }`}
+                }`}
             >
               <div
-                className={`mb-1 font-semibold ${
-                  isOwn ? 'text-[#ffd2e6]' : 'text-[#ffbad6]'
-                }`}
+                className={`mb-1 font-semibold ${isOwn ? 'text-[#ffd2e6]' : 'text-[#ffbad6]'
+                  }`}
               >
                 Reply thread
               </div>
@@ -372,11 +416,10 @@ const MessageBubble = ({
 
           {!isDeletedForEveryone && message.isForwarded ? (
             <span
-              className={`mb-2 inline-flex rounded-full border px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.08em] ${
-                isOwn
+              className={`mb-2 inline-flex rounded-full border px-2 py-1 text-[0.66rem] font-bold uppercase tracking-[0.08em] ${isOwn
                   ? 'border-white/14 bg-white/[0.08] text-white/82'
                   : 'border-white/10 bg-white/[0.04] text-white/70'
-              }`}
+                }`}
             >
               Forwarded
             </span>
@@ -472,11 +515,10 @@ const MessageBubble = ({
                       key={option._id}
                       type="button"
                       onClick={() => onVotePoll?.(message._id, option._id)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${
-                        isSelected
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${isSelected
                           ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-white'
                           : 'border-white/10 bg-black/10 text-white/82 hover:bg-white/[0.08]'
-                      }`}
+                        }`}
                     >
                       <span className="truncate">{option.text}</span>
                       <span className="shrink-0 text-xs text-white/55">{voteCount} vote{voteCount === 1 ? '' : 's'}</span>
@@ -499,15 +541,13 @@ const MessageBubble = ({
 
           {!isDeletedForEveryone && isCallMessage ? (
             <div
-              className={`mb-1 rounded-2xl border px-4 py-3 ${
-                isOwn ? 'border-white/14 bg-white/[0.1]' : 'border-white/10 bg-white/[0.04]'
-              }`}
+              className={`mb-1 rounded-2xl border px-4 py-3 ${isOwn ? 'border-white/14 bg-white/[0.1]' : 'border-white/10 bg-white/[0.04]'
+                }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className={`text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${
-                    isOwn ? 'text-white/68' : 'text-white/50'
-                  }`}>
+                  <div className={`text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${isOwn ? 'text-white/68' : 'text-white/50'
+                    }`}>
                     {getCallTypeLabel(callDetails?.callType)}
                   </div>
                   <div className="mt-1 text-sm font-semibold text-white">
@@ -517,13 +557,12 @@ const MessageBubble = ({
                     {callSummary}
                   </div>
                 </div>
-                <div className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold ${
-                  callDetails?.status === 'completed'
+                <div className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold ${callDetails?.status === 'completed'
                     ? 'border-[#6affe8]/20 bg-[#6affe8]/10 text-[#aef9ff]'
                     : callDetails?.status === 'declined'
                       ? 'border-[#ffcf7c]/20 bg-[#ffcf7c]/10 text-[#ffe2a1]'
                       : 'border-[#ff8ca8]/20 bg-[#ff8ca8]/10 text-[#ffd1df]'
-                }`}>
+                  }`}>
                   {callStatusBadgeLabel}
                 </div>
               </div>
@@ -551,27 +590,41 @@ const MessageBubble = ({
 
           {!isDeletedForEveryone && message.content && mediaType !== 'poll' && mediaType !== 'call' ? (
             <p className="whitespace-pre-wrap break-words">
-              {messageContentParts.map((part, index) =>
-                part.isMention ? (
-                  <span
-                    key={`mention-${index}`}
-                    className={`rounded px-1 font-semibold ${
-                      isOwn ? 'bg-white/16 text-[#fff1b8]' : 'bg-[#7c6aff]/18 text-[#eadfff]'
-                    }`}
-                  >
-                    {part.text}
-                  </span>
-                ) : (
-                  <span key={`text-${index}`}>{part.text}</span>
-                )
-              )}
+              {messageContentParts.map((part, index) => {
+                if (part.isMention) {
+                  return (
+                    <span
+                      key={`mention-${index}`}
+                      className={`rounded px-1 font-semibold ${isOwn ? 'bg-white/16 text-[#fff1b8]' : 'bg-[#7c6aff]/18 text-[#eadfff]'
+                        }`}
+                    >
+                      {part.text}
+                    </span>
+                  );
+                }
+
+                if (part.isLink) {
+                  return (
+                    <a
+                      key={`link-${index}`}
+                      href={part.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="break-all text-inherit underline decoration-current/35 underline-offset-2"
+                    >
+                      {part.text}
+                    </a>
+                  );
+                }
+
+                return <span key={`text-${index}`}>{part.text}</span>;
+              })}
             </p>
           ) : null}
 
           <div
-            className={`mt-2 inline-flex items-center gap-2 px-1 text-[0.7rem] ${
-              isOwn ? 'text-white/55' : 'text-white/30'
-            }`}
+            className={`mt-2 inline-flex items-center gap-2 px-1 text-[0.7rem] ${isOwn ? 'text-white/55' : 'text-white/30'
+              }`}
           >
             <span>{messageTimeLabel}</span>
             {message.isEdited ? <span>Edited</span> : null}
@@ -587,11 +640,10 @@ const MessageBubble = ({
               <button
                 type="button"
                 onClick={() => onOpenReadReceipts?.(message)}
-                className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold transition ${
-                  seenCount
+                className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold transition ${seenCount
                     ? 'border-[#6affe8]/24 bg-[#6affe8]/10 text-[#aef9ff] hover:bg-[#6affe8]/16 hover:text-white'
                     : 'border-white/12 bg-white/[0.06] text-white/74 hover:bg-white/[0.12] hover:text-white'
-                }`}
+                  }`}
                 title="View message readers"
               >
                 Seen {seenCount}/{totalRecipients}
@@ -600,11 +652,10 @@ const MessageBubble = ({
             <button
               type="button"
               onClick={() => setShowMenu((value) => !value)}
-              className={`ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
-                isOwn
+              className={`ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${isOwn
                   ? 'border-white/10 bg-white/[0.08] text-white/72 hover:bg-white/[0.14] hover:text-white'
                   : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white'
-              } opacity-100 md:opacity-0 md:group-hover:opacity-100`}
+                } opacity-100 md:opacity-0 md:group-hover:opacity-100`}
               aria-label="Message actions"
               title="Message actions"
             >
@@ -615,9 +666,8 @@ const MessageBubble = ({
           {showMenu ? (
             <div
               ref={menuRef}
-              className={`app-scrollbar absolute z-20 min-w-[220px] overflow-y-auto rounded-[18px] border border-white/10 bg-[#101018]/95 p-2 shadow-[0_28px_72px_rgba(0,0,0,0.55)] transition-opacity duration-150 ease-in-out ${
-                isOwn ? 'right-full mr-2' : 'left-full ml-2'
-              }`}
+              className={`app-scrollbar absolute z-20 min-w-[220px] overflow-y-auto rounded-[18px] border border-white/10 bg-[#101018]/95 p-2 shadow-[0_28px_72px_rgba(0,0,0,0.55)] transition-opacity duration-150 ease-in-out ${isOwn ? 'right-full mr-2' : 'left-full ml-2'
+                }`}
               style={{ ...menuPlacement, whiteSpace: 'nowrap' }}
             >
               {!isDeletedForEveryone && !isScheduledPending ? (
@@ -638,11 +688,10 @@ const MessageBubble = ({
                   <button
                     type="button"
                     onClick={() => setShowReactionPicker((value) => !value)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition ${
-                      showReactionPicker
+                    className={`rounded-xl border px-3 py-2 text-sm transition ${showReactionPicker
                         ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-[#e3deff]'
                         : 'border-white/8 bg-white/[0.04] text-white/70 hover:border-[#7c6aff]/25 hover:bg-white/[0.08] hover:text-white'
-                    }`}
+                      }`}
                   >
                     + More
                   </button>
@@ -793,11 +842,10 @@ const MessageBubble = ({
                 key={`${reaction.emoji}-${index}`}
                 type="button"
                 onClick={() => onReact(message, reaction.emoji)}
-                className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                  reaction.users?.some((entry) => normalizeId(entry) === currentUserId)
+                className={`rounded-full border px-2.5 py-1 text-xs transition ${reaction.users?.some((entry) => normalizeId(entry) === currentUserId)
                     ? 'border-[#7c6aff]/35 bg-[#7c6aff]/18 text-white'
                     : 'border-white/10 bg-white/[0.05] text-white/65 hover:border-[#7c6aff]/25 hover:text-white'
-                }`}
+                  }`}
               >
                 {reaction.emoji} {reaction.users.length}
               </button>

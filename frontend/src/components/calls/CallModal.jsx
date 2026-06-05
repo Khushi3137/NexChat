@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const statusCopy = {
   incoming: 'Incoming call',
@@ -113,7 +113,10 @@ const CallModal = ({
   onToggleSpeaker,
   onAddPeople,
 }) => {
+  const modalRef = useRef(null);
   const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const isVideoCall = callType === 'video';
   const isConnected = callStatus === 'in-call';
   const hasRemoteVideo = isVideoCall && Boolean(remoteStream);
@@ -167,6 +170,17 @@ const CallModal = ({
     }
   }, [remoteStream, remoteVideoRef]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === modalRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   const handleEnableSound = async () => {
     const element = remoteVideoRef?.current;
     if (!element) return;
@@ -179,8 +193,26 @@ const CallModal = ({
     }
   };
 
+  const handleToggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await modalRef.current?.requestFullscreen?.();
+      }
+      setIsMoreMenuOpen(false);
+    } catch {
+      setIsMoreMenuOpen(false);
+    }
+  };
+
+  const handleMinimizeFromMenu = () => {
+    setIsMoreMenuOpen(false);
+    onMinimize?.();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex overflow-hidden bg-[#050507] text-white">
+    <div ref={modalRef} className="fixed inset-0 z-50 flex overflow-hidden bg-[#050507] text-white">
       <main className="relative min-w-0 flex-1 overflow-hidden bg-black">
         {isVideoCall ? (
           <video
@@ -296,9 +328,33 @@ const CallModal = ({
                     <SpeakerIcon active={audioOutputMode === 'speaker'} />
                   </IconButton>
                 ) : null}
-                <IconButton title="More options" onClick={onMinimize}>
-                  <MoreIcon />
-                </IconButton>
+                {document.fullscreenEnabled ? (
+                  <div className="relative">
+                    <IconButton title="More options" onClick={() => setIsMoreMenuOpen((value) => !value)}>
+                      <MoreIcon />
+                    </IconButton>
+                    {isMoreMenuOpen ? (
+                      <div className="absolute bottom-full right-0 mb-3 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#111118]/96 p-2 text-sm shadow-[0_18px_46px_rgba(0,0,0,0.45)] backdrop-blur">
+                        <button
+                          type="button"
+                          onClick={handleToggleFullscreen}
+                          className="block w-full rounded-xl px-3 py-2 text-left font-semibold text-white/76 transition hover:bg-white/[0.08] hover:text-white"
+                        >
+                          {isFullscreen ? 'Exit fullscreen' : 'Maximize'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleMinimizeFromMenu}
+                  title="Minimize"
+                  aria-label="Minimize"
+                  className="flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.08] text-xs font-bold text-white/78 shadow-[0_12px_34px_rgba(0,0,0,0.28)] transition hover:bg-white/[0.14] hover:text-white sm:h-14 sm:w-14"
+                >
+                  Min
+                </button>
                 <IconButton title="End call" onClick={onEnd} danger>
                   <PhoneIcon />
                 </IconButton>
@@ -417,7 +473,7 @@ export const MinimizedCallWidget = ({
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold">{participantName || 'Nexus Chat'}</div>
         <div className="mt-0.5 text-xs text-white/55">
-          {callType === 'video' ? 'Video' : 'Voice'} call · {durationLabel || statusCopy[callStatus] || 'Active'}
+          {callType === 'video' ? 'Video call' : 'Voice call'} - {durationLabel || statusCopy[callStatus] || 'Active'}
         </div>
       </div>
       <div className="h-2.5 w-2.5 rounded-full bg-[#6affe8]" />

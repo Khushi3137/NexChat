@@ -346,9 +346,9 @@ const applyContactAliasToChat = (chatEntry, targetUserId, alias) => {
 
   return didChange
     ? {
-        ...chatEntry,
-        participants: nextParticipants,
-      }
+      ...chatEntry,
+      participants: nextParticipants,
+    }
     : chatEntry;
 };
 
@@ -392,9 +392,9 @@ const applyParticipantStateToChat = (chatEntry, targetUserId, updates) => {
 
   return didChange
     ? {
-        ...chatEntry,
-        participants: nextParticipants,
-      }
+      ...chatEntry,
+      participants: nextParticipants,
+    }
     : chatEntry;
 };
 const getGroupMessageReadReceiptDetails = (message, participants, currentUserId) => {
@@ -693,11 +693,11 @@ const ChatWindow = ({ chat }) => {
           durationSeconds:
             outcome === 'completed' && sessionSnapshot.answeredAt
               ? Math.max(
-                  0,
-                  Math.round(
-                    (new Date(sessionSnapshot.endedAt).getTime() - new Date(sessionSnapshot.answeredAt).getTime()) / 1000
-                  )
+                0,
+                Math.round(
+                  (new Date(sessionSnapshot.endedAt).getTime() - new Date(sessionSnapshot.answeredAt).getTime()) / 1000
                 )
+              )
               : 0,
           startedAt: sessionSnapshot.startedAt,
           answeredAt: sessionSnapshot.answeredAt,
@@ -797,11 +797,11 @@ const ChatWindow = ({ chat }) => {
           durationSeconds:
             outcome === 'completed' && sessionSnapshot.answeredAt
               ? Math.max(
-                  0,
-                  Math.round(
-                    (new Date(sessionSnapshot.endedAt).getTime() - new Date(sessionSnapshot.answeredAt).getTime()) / 1000
-                  )
+                0,
+                Math.round(
+                  (new Date(sessionSnapshot.endedAt).getTime() - new Date(sessionSnapshot.answeredAt).getTime()) / 1000
                 )
+              )
               : 0,
           startedAt: sessionSnapshot.startedAt,
           answeredAt: sessionSnapshot.answeredAt,
@@ -1251,9 +1251,9 @@ const ChatWindow = ({ chat }) => {
     const shouldOpenFromUnread = Boolean(chat.openFromUnread || chat.unreadCount);
     const messagesRequest = shouldOpenFromUnread
       ? chatService.getMessagesFromFirstUnread(chat._id, {
-          limit: 70,
-          contextBefore: 10,
-        })
+        limit: 70,
+        contextBefore: 10,
+      })
       : chatService.getMessages(chat._id);
 
     Promise.all([messagesRequest, chatService.getScheduledMessages(chat._id)])
@@ -1378,10 +1378,10 @@ const ChatWindow = ({ chat }) => {
       previous.map((message) =>
         unreadMessageIds.includes(message._id)
           ? {
-              ...message,
-              status: 'seen',
-              seenBy: [...new Set([...(message.seenBy || []), user._id])],
-            }
+            ...message,
+            status: 'seen',
+            seenBy: [...new Set([...(message.seenBy || []), user._id])],
+          }
           : message
       )
     );
@@ -1921,9 +1921,9 @@ const ChatWindow = ({ chat }) => {
       updateUser((previous) =>
         previous
           ? {
-              ...previous,
-              contactAliases: response.contactAliases || previous.contactAliases || {},
-            }
+            ...previous,
+            contactAliases: response.contactAliases || previous.contactAliases || {},
+          }
           : previous
       );
       setChats((previous) => previous.map((entry) => applyContactAliasToChat(entry, targetUserId, savedAlias)));
@@ -2044,10 +2044,10 @@ const ChatWindow = ({ chat }) => {
       updateUser((previous) =>
         previous
           ? {
-              ...previous,
-              contacts: response.contacts || previous.contacts || [],
-              friends: response.friends || previous.friends || [],
-            }
+            ...previous,
+            contacts: response.contacts || previous.contacts || [],
+            friends: response.friends || previous.friends || [],
+          }
           : previous
       );
       setChats((previous) =>
@@ -2400,11 +2400,11 @@ const ChatWindow = ({ chat }) => {
         previous.map((entry) =>
           normalizeId(entry._id) === normalizeId(chat._id)
             ? {
-                ...entry,
-                lastMessage: null,
-                unreadCount: 0,
-                scheduledPreview: null,
-              }
+              ...entry,
+              lastMessage: null,
+              unreadCount: 0,
+              scheduledPreview: null,
+            }
             : entry
         )
       );
@@ -2412,11 +2412,11 @@ const ChatWindow = ({ chat }) => {
       setSelectedChat((previous) =>
         normalizeId(previous?._id) === normalizeId(chat._id)
           ? {
-              ...previous,
-              lastMessage: null,
-              unreadCount: 0,
-              scheduledPreview: null,
-            }
+            ...previous,
+            lastMessage: null,
+            unreadCount: 0,
+            scheduledPreview: null,
+          }
           : previous
       );
 
@@ -2592,10 +2592,10 @@ const ChatWindow = ({ chat }) => {
         updateUser((previous) =>
           previous
             ? {
-                ...previous,
-                blockedUsers: [...(previous.blockedUsers || []), other._id],
-                hiddenChats: [...(previous.hiddenChats || []), chat._id],
-              }
+              ...previous,
+              blockedUsers: [...(previous.blockedUsers || []), other._id],
+              hiddenChats: [...(previous.hiddenChats || []), chat._id],
+            }
             : previous
         );
       }
@@ -2912,7 +2912,7 @@ const ChatWindow = ({ chat }) => {
       ? 'text-[#4affa0]'
       : !canShowParticipantPresence(other)
         ? 'text-white/55'
-      : 'text-white/42';
+        : 'text-white/42';
   const statusDotClass = isAIBotChat
     ? 'bg-[#7c6aff] shadow-[0_0_14px_rgba(124,106,255,0.45)]'
     : isOnline
@@ -2940,10 +2940,10 @@ const ChatWindow = ({ chat }) => {
       ? 'You'
       : typeof activeSearchResult.senderId === 'object'
         ? activeSearchResultSender?.localName
-          || activeSearchResult.senderId?.localName
-          || activeSearchResultSender?.name
-          || activeSearchResult.senderId?.name
-          || 'Participant'
+        || activeSearchResult.senderId?.localName
+        || activeSearchResultSender?.name
+        || activeSearchResult.senderId?.name
+        || 'Participant'
         : 'Participant'
     : '';
 
@@ -2968,11 +2968,10 @@ const ChatWindow = ({ chat }) => {
       <div
         key={message._id}
         data-message-id={message._id}
-        className={`rounded-[28px] transition-all duration-500 ${
-          normalizeId(message._id) === highlightedMessageId
-            ? 'bg-[#4affa0]/[0.06] shadow-[0_0_0_1px_rgba(74,255,160,0.24),0_0_36px_rgba(74,255,160,0.1)]'
-            : ''
-        }`}
+        className={`rounded-[28px] transition-all duration-500 ${normalizeId(message._id) === highlightedMessageId
+          ? 'bg-[#4affa0]/[0.06] shadow-[0_0_0_1px_rgba(74,255,160,0.24),0_0_36px_rgba(74,255,160,0.1)]'
+          : ''
+          }`}
       >
         <MessageBubble
           message={message}
@@ -3024,7 +3023,7 @@ const ChatWindow = ({ chat }) => {
           <span className="contact-scroll-indicator__thumb" />
         </div>
         <div className="app-scrollbar h-full overflow-y-scroll px-5 py-5">
-          <div className="rounded-[22px] border border-white/10 bg-[#14141f]/90 px-5 py-6 text-center shadow-[0_28px_72px_rgba(0,0,0,0.55)]">
+          <div className="info-panel-card px-5 py-6 text-center">
             <div className="flex justify-center">
               {chatAvatar ? (
                 <button
@@ -3071,11 +3070,8 @@ const ChatWindow = ({ chat }) => {
               <button
                 type="button"
                 onClick={handleSearch}
-                className={`col-span-2 flex items-center justify-between gap-3 rounded-[24px] border px-4 py-4 text-left transition ${
-                  isMessageSearchOpen
-                    ? 'border-[#7c6aff]/28 bg-[#7c6aff]/12'
-                    : 'border-white/8 bg-white/[0.04] hover:bg-white/[0.07]'
-                }`}
+                className={`col-span-2 flex items-center justify-between gap-3 info-section-card ${isMessageSearchOpen ? 'border-[#7c6aff]/28 bg-[#7c6aff]/12' : ''
+                  }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="brand-font text-[1rem] font-bold text-white">Search</div>
@@ -3083,18 +3079,17 @@ const ChatWindow = ({ chat }) => {
                     {messageSearchQuery.trim() ? messageSearchQuery.trim() : 'Find messages in this conversation'}
                   </div>
                 </div>
-                <div className={`shrink-0 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${
-                  isMessageSearchOpen
-                    ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-[#e7e0ff]'
-                    : 'border-white/10 bg-white/[0.04] text-white/52'
-                }`}>
+                <div className={`shrink-0 rounded-full border px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${isMessageSearchOpen
+                  ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-[#e7e0ff]'
+                  : 'border-white/10 bg-white/[0.04] text-white/52'
+                  }`}>
                   Open
                 </div>
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenSharedContent('media')}
-                className="flex min-h-[112px] flex-col justify-between rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-4 text-left transition hover:bg-white/[0.07]"
+                className="info-section-card flex min-h-[112px] flex-col justify-between"
               >
                 <div className="brand-font text-[1.15rem] font-bold text-white">{mediaMessages.length}</div>
                 <div className="text-[0.78rem] leading-5 text-white/38">Shared Files</div>
@@ -3102,7 +3097,7 @@ const ChatWindow = ({ chat }) => {
               <button
                 type="button"
                 onClick={() => handleOpenSharedContent('links')}
-                className="flex min-h-[112px] flex-col justify-between rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-4 text-left transition hover:bg-white/[0.07]"
+                className="info-section-card flex min-h-[112px] flex-col justify-between"
               >
                 <div className="brand-font text-[1.15rem] font-bold text-white">{sharedLinks.length}</div>
                 <div className="text-[0.78rem] leading-5 text-white/38">Links</div>
@@ -3200,7 +3195,7 @@ const ChatWindow = ({ chat }) => {
           </div>
 
           {chat.isGroupChat ? (
-            <section className="mt-4 rounded-[20px] border border-white/10 bg-[#14141f]/90 p-4 shadow-[0_28px_72px_rgba(0,0,0,0.55)]">
+            <section className="mt-4 info-panel-card p-4">
               <div className="rounded-2xl border border-white/8 bg-[#0d0d17]/60 px-4 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -3260,11 +3255,10 @@ const ChatWindow = ({ chat }) => {
                           setSelectedGroupMemberId('');
                         }
                       }}
-                      className={`rounded-2xl border px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] transition ${
-                        isMemberInfoOpen
-                          ? 'border-[#7c6aff]/35 bg-[linear-gradient(135deg,rgba(124,106,255,0.3),rgba(255,106,176,0.15))] text-[#f3edff] shadow-[0_14px_34px_rgba(124,106,255,0.18)]'
-                          : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white'
-                      }`}
+                      className={`rounded-2xl border px-4 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] transition ${isMemberInfoOpen
+                        ? 'border-[#7c6aff]/35 bg-[linear-gradient(135deg,rgba(124,106,255,0.3),rgba(255,106,176,0.15))] text-[#f3edff] shadow-[0_14px_34px_rgba(124,106,255,0.18)]'
+                        : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white'
+                        }`}
                     >
                       {isMemberInfoOpen ? 'Hide List' : 'Show List'}
                     </button>
@@ -3296,11 +3290,10 @@ const ChatWindow = ({ chat }) => {
                           return (
                             <div
                               key={participantId}
-                              className={`overflow-hidden rounded-[22px] border transition ${
-                                isExpanded
-                                  ? 'border-[#7c6aff]/28 bg-[linear-gradient(135deg,rgba(124,106,255,0.16),rgba(255,106,176,0.08))] shadow-[0_18px_38px_rgba(124,106,255,0.12)]'
-                                  : 'border-white/8 bg-white/[0.025]'
-                              }`}
+                              className={`overflow-hidden rounded-[22px] border transition ${isExpanded
+                                ? 'border-[#7c6aff]/28 bg-[linear-gradient(135deg,rgba(124,106,255,0.16),rgba(255,106,176,0.08))] shadow-[0_18px_38px_rgba(124,106,255,0.12)]'
+                                : 'border-white/8 bg-white/[0.025]'
+                                }`}
                             >
                               <button
                                 type="button"
@@ -3312,11 +3305,10 @@ const ChatWindow = ({ chat }) => {
                                     {participantName}
                                   </div>
                                 </div>
-                                <span className={`shrink-0 rounded-full border px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${
-                                  isExpanded
-                                    ? 'border-[#7c6aff]/28 bg-[#7c6aff]/12 text-[#efe9ff]'
-                                    : 'border-white/10 bg-white/[0.04] text-white/45'
-                                }`}>
+                                <span className={`shrink-0 rounded-full border px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${isExpanded
+                                  ? 'border-[#7c6aff]/28 bg-[#7c6aff]/12 text-[#efe9ff]'
+                                  : 'border-white/10 bg-white/[0.04] text-white/45'
+                                  }`}>
                                   {isExpanded ? 'Close' : 'Open'}
                                 </span>
                               </button>
@@ -3501,7 +3493,7 @@ const ChatWindow = ({ chat }) => {
           ) : null}
 
           {!isAIBotChat && !chat.isGroupChat && other ? (
-            <section className="mt-4 rounded-[20px] border border-white/10 bg-[#14141f]/90 p-4 shadow-[0_28px_72px_rgba(0,0,0,0.55)]">
+            <section className="mt-4 info-panel-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="brand-font text-[0.96rem] font-bold text-white">Custom Name</div>
@@ -3540,7 +3532,7 @@ const ChatWindow = ({ chat }) => {
                   type="button"
                   onClick={() => setContactAliasDraft(existingContactAlias)}
                   disabled={isSavingContactAlias || !hasContactAliasChanges}
-                  className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[0.74rem] font-semibold text-white/60 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+                  className="button-muted"
                 >
                   Reset
                 </button>
@@ -3548,7 +3540,7 @@ const ChatWindow = ({ chat }) => {
                   type="button"
                   onClick={() => handleSaveContactAlias(other, '', setContactAliasDraft)}
                   disabled={isSavingContactAlias || (!existingContactAlias && !normalizedContactAliasDraft)}
-                  className="min-w-0 rounded-xl border border-[#ff8ca8]/20 bg-[#ff8ca8]/8 px-3 py-2 text-[0.74rem] font-semibold text-[#ffd5df] transition hover:bg-[#ff8ca8]/15 disabled:cursor-not-allowed disabled:opacity-55"
+                  className="button-danger"
                 >
                   Remove
                 </button>
@@ -3556,7 +3548,7 @@ const ChatWindow = ({ chat }) => {
                   type="button"
                   onClick={() => handleSaveContactAlias(other, normalizedContactAliasDraft, setContactAliasDraft)}
                   disabled={isSavingContactAlias || !hasContactAliasChanges}
-                  className="col-span-2 min-w-0 rounded-xl border border-[#7c6aff]/30 bg-[#7c6aff]/14 px-3 py-2 text-[0.74rem] font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/22 disabled:cursor-not-allowed disabled:opacity-55"
+                  className="button-primary col-span-2"
                 >
                   {isSavingContactAlias ? 'Saving...' : 'Save Name'}
                 </button>
@@ -3565,37 +3557,37 @@ const ChatWindow = ({ chat }) => {
           ) : null}
 
           {!isAIBotChat ? (
-          <section className="mt-4 rounded-[20px] border border-white/10 bg-[#14141f]/90 p-4 shadow-[0_28px_72px_rgba(0,0,0,0.55)]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="brand-font text-[0.96rem] font-bold text-white">Scheduled Messages</div>
-                <div className="mt-1 text-sm text-white/35">
-                  Only you can see these until they are sent, and you can remove them anytime before that.
+            <section className="mt-4 info-panel-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="brand-font text-[0.96rem] font-bold text-white">Scheduled Messages</div>
+                  <div className="mt-1 text-sm text-white/35">
+                    Only you can see these until they are sent, and you can remove them anytime before that.
+                  </div>
+                </div>
+                <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[0.7rem] font-semibold text-white/55">
+                  {scheduledMessages.length}
                 </div>
               </div>
-              <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[0.7rem] font-semibold text-white/55">
-                {scheduledMessages.length}
-              </div>
-            </div>
 
-            {scheduledMessages.length ? (
-              <div className="mt-4 space-y-3">
-                {scheduledMessages.map((message) => (
-                  <div
-                    key={message._id}
-                    className="overflow-hidden rounded-[18px] border border-white/10 bg-[linear-gradient(135deg,rgba(124,106,255,0.1),rgba(255,106,176,0.06))] px-4 py-4"
-                  >
-                    <div className="flex min-w-0 flex-col gap-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[#ddd7ff]">
-                          {getScheduledPreviewTitle(message)}
+              {scheduledMessages.length ? (
+                <div className="mt-4 space-y-3">
+                  {scheduledMessages.map((message) => (
+                    <div
+                      key={message._id}
+                      className="overflow-hidden rounded-[18px] border border-white/10 bg-[linear-gradient(135deg,rgba(124,106,255,0.1),rgba(255,106,176,0.06))] px-4 py-4"
+                    >
+                      <div className="flex min-w-0 flex-col gap-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[#ddd7ff]">
+                            {getScheduledPreviewTitle(message)}
+                          </div>
+                          <div className="text-[0.74rem] text-white/45">
+                            {getScheduledSendTimeLabel(message.scheduledTime)}
+                          </div>
                         </div>
-                        <div className="text-[0.74rem] text-white/45">
-                          {getScheduledSendTimeLabel(message.scheduledTime)}
-                        </div>
-                      </div>
-                      {editingScheduledId === message._id ? null : (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+                        {editingScheduledId === message._id ? null : (
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                             <button
                               type="button"
                               onClick={() => startScheduledEdit(message)}
@@ -3611,74 +3603,73 @@ const ChatWindow = ({ chat }) => {
                             >
                               {removingScheduledId === message._id ? 'Removing...' : 'Remove'}
                             </button>
+                          </div>
+                        )}
+                      </div>
+                      {editingScheduledId === message._id ? (
+                        <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d0d17]/60 px-3 py-3">
+                          <textarea
+                            ref={scheduledEditRef}
+                            value={scheduledDraft}
+                            onChange={(event) => setScheduledDraft(event.target.value)}
+                            rows={4}
+                            placeholder={message.mediaUrl ? 'Add or update a caption...' : 'Edit scheduled message...'}
+                            className="w-full resize-none bg-transparent text-sm leading-6 text-white/78 outline-none placeholder:text-white/28"
+                          />
+                          {showScheduledKeyboard ? (
+                            <VirtualKeyboard
+                              className="mt-3"
+                              onInput={handleScheduledKeyboardInput}
+                              onBackspace={handleScheduledKeyboardBackspace}
+                              onSpace={() => handleScheduledKeyboardInput(' ')}
+                              onEnter={() => handleScheduledKeyboardInput('\n')}
+                              onClose={() => setShowScheduledKeyboard(false)}
+                            />
+                          ) : null}
+                          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowScheduledKeyboard((value) => !value)}
+                              className={`min-w-0 rounded-xl border px-3 py-2 text-[0.74rem] font-semibold transition ${showScheduledKeyboard
+                                ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-[#e3deff]'
+                                : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white'
+                                }`}
+                            >
+                              Keyboard
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelScheduledEdit}
+                              className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[0.74rem] font-semibold text-white/60 transition hover:bg-white/[0.07] hover:text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveScheduledEdit(message)}
+                              disabled={savingScheduledId === message._id}
+                              className="min-w-0 rounded-xl border border-[#7c6aff]/30 bg-[#7c6aff]/14 px-3 py-2 text-[0.74rem] font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/22 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {savingScheduledId === message._id ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 break-words rounded-2xl border border-white/8 bg-[#0d0d17]/60 px-3 py-3 text-sm leading-6 text-white/72">
+                          {getScheduledPreviewBody(message)}
                         </div>
                       )}
                     </div>
-                    {editingScheduledId === message._id ? (
-                      <div className="mt-3 rounded-2xl border border-white/8 bg-[#0d0d17]/60 px-3 py-3">
-                        <textarea
-                          ref={scheduledEditRef}
-                          value={scheduledDraft}
-                          onChange={(event) => setScheduledDraft(event.target.value)}
-                          rows={4}
-                          placeholder={message.mediaUrl ? 'Add or update a caption...' : 'Edit scheduled message...'}
-                          className="w-full resize-none bg-transparent text-sm leading-6 text-white/78 outline-none placeholder:text-white/28"
-                        />
-                        {showScheduledKeyboard ? (
-                          <VirtualKeyboard
-                            className="mt-3"
-                            onInput={handleScheduledKeyboardInput}
-                            onBackspace={handleScheduledKeyboardBackspace}
-                            onSpace={() => handleScheduledKeyboardInput(' ')}
-                            onEnter={() => handleScheduledKeyboardInput('\n')}
-                            onClose={() => setShowScheduledKeyboard(false)}
-                          />
-                        ) : null}
-                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          <button
-                            type="button"
-                            onClick={() => setShowScheduledKeyboard((value) => !value)}
-                            className={`min-w-0 rounded-xl border px-3 py-2 text-[0.74rem] font-semibold transition ${
-                              showScheduledKeyboard
-                                ? 'border-[#7c6aff]/30 bg-[#7c6aff]/14 text-[#e3deff]'
-                                : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.07] hover:text-white'
-                            }`}
-                          >
-                            Keyboard
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelScheduledEdit}
-                            className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[0.74rem] font-semibold text-white/60 transition hover:bg-white/[0.07] hover:text-white"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSaveScheduledEdit(message)}
-                            disabled={savingScheduledId === message._id}
-                            className="min-w-0 rounded-xl border border-[#7c6aff]/30 bg-[#7c6aff]/14 px-3 py-2 text-[0.74rem] font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/22 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {savingScheduledId === message._id ? 'Saving...' : 'Save'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-3 break-words rounded-2xl border border-white/8 bg-[#0d0d17]/60 px-3 py-3 text-sm leading-6 text-white/72">
-                        {getScheduledPreviewBody(message)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-white/35">No scheduled messages waiting to send.</div>
-            )}
-          </section>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 text-sm text-white/35">No scheduled messages waiting to send.</div>
+              )}
+            </section>
           ) : null}
 
           {!isAIBotChat ? (
-            <section className="mt-4 rounded-[20px] border border-[#ff8ca8]/12 bg-[#14141f]/90 p-4 shadow-[0_28px_72px_rgba(0,0,0,0.55)]">
+            <section className="mt-4 info-panel-card border-[#ff8ca8]/12 bg-[#14141f]/90 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="brand-font text-[0.96rem] font-bold text-white">
@@ -3702,7 +3693,7 @@ const ChatWindow = ({ chat }) => {
                   <button
                     type="button"
                     onClick={openAddMemberPanel}
-                    className="rounded-2xl border border-[#7c6aff]/24 bg-[#7c6aff]/12 px-4 py-3 text-sm font-semibold text-[#e3deff] transition hover:bg-[#7c6aff]/20 hover:text-white"
+                    className="button-primary"
                   >
                     Add Member
                   </button>
@@ -3713,7 +3704,7 @@ const ChatWindow = ({ chat }) => {
                     type="button"
                     onClick={handleLeaveGroup}
                     disabled={isLeavingGroup || isDeletingGroup}
-                    className="rounded-2xl border border-[#ff8ca8]/18 bg-[#ff8ca8]/8 px-4 py-3 text-sm font-semibold text-[#ffd5df] transition hover:bg-[#ff8ca8]/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-danger"
                   >
                     {isLeavingGroup ? 'Leaving...' : 'Leave Group'}
                   </button>
@@ -3722,7 +3713,7 @@ const ChatWindow = ({ chat }) => {
                     type="button"
                     onClick={handleDeleteConversation}
                     disabled={isDeletingConversation}
-                    className="rounded-2xl border border-[#ff8ca8]/18 bg-[#ff8ca8]/8 px-4 py-3 text-sm font-semibold text-[#ffd5df] transition hover:bg-[#ff8ca8]/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-danger"
                   >
                     {isDeletingConversation ? 'Deleting...' : 'Delete Chat'}
                   </button>
@@ -3733,7 +3724,7 @@ const ChatWindow = ({ chat }) => {
                     type="button"
                     onClick={handleDeleteGroup}
                     disabled={isDeletingGroup || isLeavingGroup}
-                    className="rounded-2xl border border-[#ff6b94]/18 bg-[#ff6b94]/10 px-4 py-3 text-sm font-semibold text-[#ffd5df] transition hover:bg-[#ff6b94]/16 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-danger"
                   >
                     {isDeletingGroup ? 'Deleting...' : 'Delete Group'}
                   </button>
@@ -3747,7 +3738,7 @@ const ChatWindow = ({ chat }) => {
               type="button"
               onClick={handleExportChat}
               disabled={isExportingChat}
-              className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 text-sm text-white/60 transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-secondary"
             >
               {isExportingChat ? 'Exporting...' : 'Export'}
             </button>
@@ -3756,7 +3747,7 @@ const ChatWindow = ({ chat }) => {
                 type="button"
                 onClick={handleBlockUser}
                 disabled={isBlockingUser || isOtherUserBlocked}
-                className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 text-sm text-[#ffb6bf] transition hover:bg-white/[0.06] hover:text-[#ffd2d7] disabled:cursor-not-allowed disabled:opacity-60"
+                className="button-danger"
               >
                 {isOtherUserBlocked ? 'Blocked' : isBlockingUser ? 'Blocking...' : 'Block'}
               </button>
@@ -3770,9 +3761,8 @@ const ChatWindow = ({ chat }) => {
   return (
     <>
       <div
-        className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${
-          isInfoPanelOpen ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_336px]' : 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)]'
-        }`}
+        className={`grid min-h-0 min-w-0 flex-1 overflow-hidden ${isInfoPanelOpen ? 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_336px]' : 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)]'
+          }`}
       >
         <section
           className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#0a0a12]"
@@ -3851,9 +3841,9 @@ const ChatWindow = ({ chat }) => {
                   <button
                     type="button"
                     onClick={chat.isGroupChat ? startGroupVideoCall : startVideoCall}
-                    className="inline-flex h-9 min-w-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] px-2 text-xs text-white/65 transition hover:bg-[rgba(106,255,232,0.1)] hover:text-[#6affe8] sm:h-10 sm:px-3 sm:text-sm"
+                    className="inline-flex h-9 min-w-0 items-center justify-center whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.03] px-2 text-xs text-white/65 transition hover:bg-[rgba(106,255,232,0.1)] hover:text-[#6affe8] sm:h-10 sm:px-3 sm:text-sm"
                   >
-                    Video
+                    Video call
                   </button>
                 </>
               ) : null}
@@ -3862,11 +3852,10 @@ const ChatWindow = ({ chat }) => {
                   type="button"
                   onClick={handleMute}
                   disabled={isUpdatingMute}
-                  className={`inline-flex h-9 min-w-0 items-center justify-center rounded-xl border px-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:px-3 sm:text-sm ${
-                    isMutedChat
-                      ? 'border-[#ffcf7c]/24 bg-[#ffcf7c]/10 text-[#ffe2a1] hover:bg-[#ffcf7c]/16 hover:text-white'
-                      : 'border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.07] hover:text-white'
-                  }`}
+                  className={`inline-flex h-9 min-w-0 items-center justify-center rounded-xl border px-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:px-3 sm:text-sm ${isMutedChat
+                    ? 'border-[#ffcf7c]/24 bg-[#ffcf7c]/10 text-[#ffe2a1] hover:bg-[#ffcf7c]/16 hover:text-white'
+                    : 'border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.07] hover:text-white'
+                    }`}
                 >
                   {isUpdatingMute ? '...' : isMutedChat ? 'Unmute' : 'Mute'}
                 </button>
@@ -3882,11 +3871,10 @@ const ChatWindow = ({ chat }) => {
                 <button
                   type="button"
                   onClick={() => setShowInfoPanel((previous) => !previous)}
-                  className={`inline-flex h-9 min-w-0 items-center justify-center rounded-xl border px-2 text-xs transition sm:h-10 sm:px-3 sm:text-sm ${
-                    isInfoPanelOpen
-                      ? 'border-[#7c6aff]/30 bg-[#7c6aff]/12 text-[#ddd7ff]'
-                      : 'border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.07] hover:text-white'
-                  }`}
+                  className={`inline-flex h-9 min-w-0 items-center justify-center rounded-xl border px-2 text-xs transition sm:h-10 sm:px-3 sm:text-sm ${isInfoPanelOpen
+                    ? 'border-[#7c6aff]/30 bg-[#7c6aff]/12 text-[#ddd7ff]'
+                    : 'border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.07] hover:text-white'
+                    }`}
                 >
                   Info
                 </button>
@@ -3904,11 +3892,10 @@ const ChatWindow = ({ chat }) => {
                     <span className="rounded-full border border-[#7c6aff]/18 bg-[#7c6aff]/10 px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-[#ddd7ff]">
                       {requestLabel}
                     </span>
-                    <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${
-                      isPendingRequest
-                        ? 'border border-[#ffb6bf]/18 bg-[#ffb6bf]/10 text-[#ffd2d7]'
-                        : 'border border-white/10 bg-white/[0.05] text-white/55'
-                    }`}>
+                    <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] ${isPendingRequest
+                      ? 'border border-[#ffb6bf]/18 bg-[#ffb6bf]/10 text-[#ffd2d7]'
+                      : 'border border-white/10 bg-white/[0.05] text-white/55'
+                      }`}>
                       {isPendingRequest ? 'Pending' : 'Removed'}
                     </span>
                   </div>
@@ -3983,10 +3970,10 @@ const ChatWindow = ({ chat }) => {
         ) : null}
       </div>
 
-        {isInfoPanelOpen ? (
-          <div className="fixed inset-0 z-40 bg-black/65 lg:hidden">
-            <div className="absolute inset-y-0 right-0 flex w-full max-w-[360px] flex-col overflow-hidden border-l border-white/10 bg-[#0f0f1a] shadow-[-24px_0_80px_rgba(0,0,0,0.55)]">
-              {infoPanelContent}
+      {isInfoPanelOpen ? (
+        <div className="fixed inset-0 z-40 bg-black/65 lg:hidden">
+          <div className="absolute inset-y-0 right-0 flex w-full max-w-[360px] flex-col overflow-hidden border-l border-white/10 bg-[#0f0f1a] shadow-[-24px_0_80px_rgba(0,0,0,0.55)]">
+            {infoPanelContent}
           </div>
         </div>
       ) : null}
@@ -4196,11 +4183,10 @@ const ChatWindow = ({ chat }) => {
                       key={targetId}
                       type="button"
                       onClick={() => toggleForwardTarget(targetId)}
-                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-                        isSelected
-                          ? 'border-[#7c6aff]/35 bg-[#7c6aff]/12'
-                          : 'border-white/8 bg-white/[0.03] hover:bg-white/[0.06]'
-                      }`}
+                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${isSelected
+                        ? 'border-[#7c6aff]/35 bg-[#7c6aff]/12'
+                        : 'border-white/8 bg-white/[0.03] hover:bg-white/[0.06]'
+                        }`}
                     >
                       <Avatar
                         src={getChatAvatar(entry, user._id)}
@@ -4218,11 +4204,10 @@ const ChatWindow = ({ chat }) => {
                         </div>
                       </div>
                       <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.68rem] ${
-                          isSelected
-                            ? 'border-[#7c6aff]/35 bg-[#7c6aff] text-white'
-                            : 'border-white/14 text-transparent'
-                        }`}
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.68rem] ${isSelected
+                          ? 'border-[#7c6aff]/35 bg-[#7c6aff] text-white'
+                          : 'border-white/14 text-transparent'
+                          }`}
                       >
                         ✓
                       </div>
