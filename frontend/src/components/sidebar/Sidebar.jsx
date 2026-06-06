@@ -53,6 +53,7 @@ const Sidebar = () => {
   const { user, logout } = useAuth();
   const { chats, setChats, setSelectedChat, resetChatState } = useChat();
   const [search, setSearch] = useState('');
+  const [recentSearch, setRecentSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showGroup, setShowGroup] = useState(false);
   const [selectedSearchUser, setSelectedSearchUser] = useState(null);
@@ -87,6 +88,7 @@ const Sidebar = () => {
 
   useEffect(() => {
     setSearch('');
+    setRecentSearch('');
     setSearchResults([]);
     setSelectedSearchUser(null);
     setRequestDraft('');
@@ -199,15 +201,27 @@ const Sidebar = () => {
     if (activeFilter === 'groups' && !chat.isGroupChat) return false;
     if (activeFilter === 'ai' && !chat.isAIBotChat) return false;
 
-    if (!search.trim()) return true;
+    if (!recentSearch.trim()) return true;
 
-    const query = search.toLowerCase();
+    const query = recentSearch.trim().toLowerCase();
     const name = getChatName(chat, user?._id).toLowerCase();
     const preview = chat.lastMessage?.content?.toLowerCase() || '';
-    const otherEmail = !chat.isGroupChat && !chat.isAIBotChat
-      ? chat.participants?.find((participant) => normalizeId(participant) !== normalizeId(user?._id))?.email?.toLowerCase() || ''
-      : '';
-    return name.includes(query) || preview.includes(query) || otherEmail.includes(query);
+    const participantText = (chat.participants || [])
+      .map((participant) => [
+        participant?.name,
+        participant?.localName,
+        participant?.email,
+      ].filter(Boolean).join(' '))
+      .join(' ')
+      .toLowerCase();
+    const groupDescription = chat.groupDescription?.toLowerCase() || '';
+
+    return (
+      name.includes(query) ||
+      preview.includes(query) ||
+      participantText.includes(query) ||
+      groupDescription.includes(query)
+    );
   });
 
   const statusChats = chats.filter((chat) => !chat.isAIBotChat).slice(0, 8);
@@ -437,35 +451,65 @@ const Sidebar = () => {
             <div className={`pb-5 ${isSidebarCollapsed ? 'px-0' : 'px-[10px]'}`}>
               <div
                 className={`overflow-hidden px-[10px] transition-all duration-300 ease-out ${
-                  isSidebarCollapsed ? 'pointer-events-none max-h-0 pb-0 pt-0 opacity-0' : 'max-h-10 pb-2 pt-1 opacity-100'
+                  isSidebarCollapsed ? 'pointer-events-none max-h-0 pb-0 pt-0 opacity-0' : 'max-h-[92px] pb-3 pt-1 opacity-100'
                 }`}
               >
-                <div className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-white/28">
-                  Recent Conversations
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-white/28">
+                    Recent Conversations
+                  </div>
+                  {recentSearch.trim() ? (
+                    <button
+                      type="button"
+                      onClick={() => setRecentSearch('')}
+                      className="rounded-full border border-white/8 px-2 py-0.5 text-[0.62rem] font-semibold text-white/38 transition hover:bg-white/[0.06] hover:text-white/70"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/28">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    id="recent-conversation-search"
+                    value={recentSearch}
+                    onChange={(event) => setRecentSearch(event.target.value)}
+                    placeholder="Search members or groups"
+                    className="w-full rounded-[12px] border border-white/8 bg-[#14141f] py-2.5 pl-9 pr-3 text-sm text-[#f0eeff] outline-none transition placeholder:text-white/25 focus:border-[#7c6aff] focus:bg-[#1a1a28] focus:shadow-[0_0_0_3px_rgba(124,106,255,0.15)]"
+                  />
                 </div>
               </div>
-              <ConversationList chats={filteredChats} collapsed={isSidebarCollapsed} />
+              <ConversationList
+                chats={filteredChats}
+                collapsed={isSidebarCollapsed}
+                emptyTitle={recentSearch.trim() ? 'No matching conversations' : 'No conversations yet'}
+                emptyDescription={recentSearch.trim() ? 'Try another member or group name.' : 'Search above to start a new chat.'}
+              />
             </div>
           </div>
         </div>
 
-        <div className={`shrink-0 border-t border-white/8 bg-[#0a0a12]/85 pb-5 pt-4 backdrop-blur-2xl ${isSidebarCollapsed ? 'px-3' : 'px-5'}`}>
-          <div className={`mb-3 flex min-w-0 items-center rounded-[16px] border border-white/8 bg-[#14141f] px-3 py-3 ${isSidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-            <Avatar src={user?.profilePicture} name={user?.name} size={10} online shape="soft" />
+        <div className={`shrink-0 border-t border-white/8 bg-[#0a0a12]/85 pb-3 pt-3 backdrop-blur-2xl ${isSidebarCollapsed ? 'px-3' : 'px-5'}`}>
+          <div className={`mb-2 flex min-w-0 items-center rounded-[12px] border border-white/8 bg-[#14141f] px-2 py-2 ${isSidebarCollapsed ? 'justify-center' : 'gap-2.5'}`}>
+            <Avatar src={user?.profilePicture} name={user?.name} size={8} online shape="soft" />
             {!isSidebarCollapsed ? (
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-[#f0eeff]">{user?.name || 'Workspace user'}</div>
-              <div className="truncate text-[0.78rem] text-white/38">{user?.email || 'Connected to Nexus Chat'}</div>
+              <div className="truncate font-medium text-[0.85rem] text-[#f0eeff]">{user?.name || 'Workspace user'}</div>
+              <div className="truncate text-[0.7rem] text-white/35">{user?.email || 'Connected to Nexus Chat'}</div>
             </div>
             ) : null}
           </div>
 
-          <div className={`gap-2 ${isSidebarCollapsed ? 'flex flex-col' : 'flex'}`}>
+          <div className={`gap-1.5 ${isSidebarCollapsed ? 'flex flex-col' : 'flex'}`}>
             <button
               type="button"
               title="Settings"
               onClick={() => navigate('/settings')}
-              className={`rounded-[12px] border border-white/8 bg-[#14141f] px-3 py-3 text-sm text-white/58 transition hover:bg-[#1a1a28] hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
+              className={`rounded-[10px] border border-white/8 bg-[#14141f] px-3 py-2 text-xs text-white/58 transition hover:bg-[#1a1a28] hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
             >
               {isSidebarCollapsed ? 'Set' : 'Settings'}
             </button>
@@ -473,7 +517,7 @@ const Sidebar = () => {
               type="button"
               title="Analytics"
               onClick={() => navigate('/analytics')}
-              className={`rounded-[12px] border border-white/8 bg-[#14141f] px-3 py-3 text-sm text-white/58 transition hover:bg-[#1a1a28] hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
+              className={`rounded-[10px] border border-white/8 bg-[#14141f] px-3 py-2 text-xs text-white/58 transition hover:bg-[#1a1a28] hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
             >
               {isSidebarCollapsed ? 'Ana' : 'Analytics'}
             </button>
@@ -485,7 +529,7 @@ const Sidebar = () => {
                 logout();
                 navigate('/login');
               }}
-              className={`rounded-[12px] border border-[#ff6ab0]/20 bg-[#ff6ab0]/10 px-3 py-3 text-sm text-[#ffbad6] transition hover:bg-[#ff6ab0]/16 hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
+              className={`rounded-[10px] border border-[#ff6ab0]/20 bg-[#ff6ab0]/10 px-3 py-2 text-xs text-[#ffbad6] transition hover:bg-[#ff6ab0]/16 hover:text-white ${isSidebarCollapsed ? '' : 'flex-1'}`}
             >
               {isSidebarCollapsed ? 'Out' : 'Logout'}
             </button>

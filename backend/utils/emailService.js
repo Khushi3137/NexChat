@@ -1,7 +1,76 @@
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const sendEmail = async (to, subject, html) => {
+const stripHtml = (html = '') =>
+  String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getSender = () => ({
+  email: process.env.EMAIL_FROM,
+  name: process.env.EMAIL_FROM_NAME || 'Nexus Chat',
+});
+
+const getReplyTo = () => process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM;
+
+const freeEmailDomains = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'aol.com',
+]);
+
+let deliverabilityWarningShown = false;
+
+const getEmailDomain = (email = '') => String(email).split('@')[1]?.toLowerCase() || '';
+
+const warnAboutDeliverabilityConfig = () => {
+  if (deliverabilityWarningShown) return;
+  deliverabilityWarningShown = true;
+
+  const fromDomain = getEmailDomain(process.env.EMAIL_FROM);
+  const replyToDomain = getEmailDomain(getReplyTo());
+
+  if (freeEmailDomains.has(fromDomain)) {
+    console.warn(
+      `Email deliverability warning: EMAIL_FROM uses ${fromDomain}. ` +
+        'SendGrid cannot authenticate free mailbox domains for your app. ' +
+        'Use an address on a domain you own, then authenticate that domain in SendGrid with SPF/DKIM and add DMARC.'
+    );
+  }
+
+  if (replyToDomain && fromDomain && replyToDomain !== fromDomain) {
+    console.warn(
+      `Email deliverability warning: EMAIL_REPLY_TO domain (${replyToDomain}) does not match EMAIL_FROM domain (${fromDomain}). ` +
+        'Use the same authenticated domain when possible.'
+    );
+  }
+};
+
+const buildUnsubscribeHeaders = () => {
+  if (!process.env.CLIENT_URL) return {};
+
+  const settingsUrl = `${process.env.CLIENT_URL}/settings`;
+  return {
+    'List-Unsubscribe': `<${settingsUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+};
+
+const sendEmail = async (to, subject, html, options = {}) => {
   if (!process.env.SENDGRID_API_KEY) {
     throw new Error('SendGrid API key missing');
   }
@@ -10,12 +79,29 @@ const sendEmail = async (to, subject, html) => {
     throw new Error('Email sender address (EMAIL_FROM) is missing');
   }
 
+  warnAboutDeliverabilityConfig();
+
   try {
     await sgMail.send({
       to,
-      from: process.env.EMAIL_FROM,
+      from: getSender(),
+      ...(getReplyTo() ? { replyTo: getReplyTo() } : {}),
       subject,
       html,
+      text: options.text || stripHtml(html),
+      categories: options.categories || ['nexus-chat'],
+      headers: {
+        ...(options.includeUnsubscribe ? buildUnsubscribeHeaders() : {}),
+        ...(options.headers || {}),
+      },
+      trackingSettings: {
+        clickTracking: { enable: false, enableText: false },
+        openTracking: { enable: false },
+        subscriptionTracking: { enable: false },
+      },
+      mailSettings: {
+        bypassListManagement: { enable: false },
+      },
     });
   } catch (error) {
     console.error('SendGrid error:', error?.message || error);
@@ -152,7 +238,10 @@ exports.sendEmailNotification = async (recipient, message, options = {}) => {
       </div>
     `;
 
-    await sendEmail(recipient.email, subject, html);
+    await sendEmail(recipient.email, subject, html, {
+      categories: ['nexus-chat-notification'],
+      includeUnsubscribe: true,
+    });
     console.log(`Email sent to ${recipient.email}`);
   } catch (error) {
     console.error('Email error:', getPublicEmailError(error), error);
@@ -195,7 +284,9 @@ exports.sendPasswordResetEmail = async (user, resetUrl) => {
   `;
 
   try {
-    await sendEmail(user.email, subject, html);
+    await sendEmail(user.email, subject, html, {
+      categories: ['nexus-chat-password-reset'],
+    });
   } catch (error) {
     console.error('SendGrid error:', error?.message || error);
     throw error;
@@ -247,7 +338,10 @@ exports.sendGroupInviteEmail = async ({ invitee, inviter, group }) => {
       </div>
     `;
 
-    await sendEmail(invitee.email, subject, html);
+    await sendEmail(invitee.email, subject, html, {
+      categories: ['nexus-chat-group-invite'],
+      includeUnsubscribe: true,
+    });
     console.log(`Group invite email sent to ${invitee.email}`);
     return { sent: true };
   } catch (error) {

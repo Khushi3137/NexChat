@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import ConversationItem from './ConversationItem';
 
-const ConversationList = ({ chats, collapsed = false }) => {
+const ConversationList = ({ chats, collapsed = false, emptyTitle = 'No conversations yet', emptyDescription = 'Search above to start a new chat.' }) => {
   const { user } = useAuth();
 
   if (!chats.length) {
@@ -19,9 +19,9 @@ const ConversationList = ({ chats, collapsed = false }) => {
         <div className="brand-font flex h-[56px] w-[56px] items-center justify-center rounded-[18px] bg-gradient-to-br from-[#7c6aff]/22 to-[#ff6ab0]/18 text-[1.1rem] font-bold text-[#ebe7ff] shadow-[0_0_24px_rgba(124,106,255,0.18)]">
           NC
         </div>
-        <p className="brand-font text-[1.1rem] text-[#f0eeff]">No conversations yet</p>
+        <p className="brand-font text-[1.1rem] text-[#f0eeff]">{emptyTitle}</p>
         <p className="max-w-[220px] text-sm leading-6 text-white/35">
-          Search above to start a new chat.
+          {emptyDescription}
         </p>
       </div>
     );

@@ -40,6 +40,8 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
 EMAIL_FROM=your_verified_sender_email@example.com
+EMAIL_FROM_NAME=Nexus Chat
+EMAIL_REPLY_TO=support@example.com
 SENDGRID_API_KEY=your_sendgrid_api_key
 
 GROQ_API_KEY=your_groq_api_key
@@ -247,6 +249,8 @@ Set all backend `.env` variables in the hosting dashboard.
 - `MONGO_URI` is required in production.
 - `JWT_SECRET` should be long, random, and private.
 - `EMAIL_FROM` must be a verified SendGrid sender.
+- For best inbox delivery, authenticate your sending domain in SendGrid and add the SPF/DKIM DNS records SendGrid gives you. Add a DMARC record for the same domain, and use an `EMAIL_FROM` address on that authenticated domain instead of a free Gmail/Yahoo/Outlook address.
+- `EMAIL_FROM_NAME` is the sender display name shown in inboxes. `EMAIL_REPLY_TO` should be an address on the same verified domain.
 - `SENDGRID_API_KEY` is required for email notifications.
 - `CLOUDINARY_*` values are required for file and image sharing.
 - `GROQ_API_KEY` is required for AI assistant features.
